@@ -1,0 +1,1086 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { connectToDatabase } from "../db";
+import Affiliate from "../db/models/affiliate.model";
+import AffiliateEarning from "../db/models/affiliate-earning.model";
+import AffiliatePayout from "../db/models/affiliate-payout.model";
+import User from "../db/models/user.model";
+import WalletTransaction from "../db/models/wallet-transaction.model";
+import { AffiliateInputSchema, AffiliatePayoutInputSchema } from "../validator";
+import { flattenZodErrors, formatError, escapeRegExp } from "../utils";
+import { ActionState } from "@/types/action-state";
+import { getServerSession } from "../get-session";
+import { getSetting } from "./setting.actions";
+import {
+  sendAdminEventNotification,
+  sendAffiliateApprovalNotification,
+  sendAffiliatePayoutNotification,
+  sendAffiliateRejectedNotification,
+  sendAffiliateResubmittedNotification,
+} from "@/lib/email/transactional";
+import { formatCurrency } from "../utils";
+
+export async function registerAffiliate(data: any): Promise<ActionState> {
+  try {
+    await connectToDatabase();
+    const session = await getServerSession();
+    if (!session) throw new Error("User not authenticated");
+
+    const validated = AffiliateInputSchema.safeParse(data);
+    if (!validated.success) {
+      return {
+        success: false,
+        message: "Validation failed",
+        errors: flattenZodErrors(validated.error),
+      };
+    }
+    const validatedData = validated.data;
+    const normalizedCode = validatedData.affiliateCode.trim().toUpperCase();
+
+    const existingAffiliate = await Affiliate.findOne({
+      user: session.user.id,
+    });
+
+    if (existingAffiliate) {
+      if (existingAffiliate.status !== "rejected") {
+        throw new Error("You are already registered as an affiliate");
+      }
+
+      const conflictingCode = await Affiliate.findOne({
+        affiliateCode: normalizedCode,
+        _id: { $ne: existingAffiliate._id },
+      });
+
+      if (conflictingCode) {
+        throw new Error("Affiliate code is already taken");
+      }
+
+      existingAffiliate.affiliateCode = normalizedCode;
+      existingAffiliate.paymentDetails = validatedData.paymentDetails;
+      existingAffiliate.status = "pending";
+      existingAffiliate.adminNote = "";
+      await existingAffiliate.save();
+
+      const resubmittedAt = existingAffiliate.updatedAt.toISOString();
+
+      await sendAdminEventNotification({
+        title: "Affiliate application resubmitted",
+        description: `${session.user.name || "An affiliate"} resubmitted their affiliate application (Code: ${existingAffiliate.affiliateCode}).`,
+        href: "/admin/affiliates",
+        meta: "Review required",
+        createdAt: resubmittedAt,
+      });
+
+      if (session.user.email) {
+        await sendAffiliateResubmittedNotification({
+          email: session.user.email,
+          name: session.user.name || "Affiliate",
+          affiliateCode: existingAffiliate.affiliateCode,
+        });
+      }
+
+      revalidatePath("/affiliate/dashboard");
+      revalidatePath("/affiliate/register");
+
+      return {
+        success: true,
+        message: "Application resubmitted successfully",
+        data: JSON.parse(JSON.stringify(existingAffiliate)),
+      };
+    }
+
+    const existingCode = await Affiliate.findOne({
+      affiliateCode: normalizedCode,
+    });
+    if (existingCode) {
+      throw new Error("Affiliate code is already taken");
+    }
+
+    const affiliate = await Affiliate.create({
+      user: session.user.id,
+      affiliateCode: normalizedCode,
+      paymentDetails: validatedData.paymentDetails,
+      status: "pending",
+    });
+
+    await sendAdminEventNotification({
+      title: "New affiliate application",
+      description: `${session.user.name || "A user"} applied to be an affiliate (Code: ${affiliate.affiliateCode}).`,
+      href: "/admin/affiliates",
+      meta: "Application pending",
+      createdAt: affiliate.createdAt.toISOString(),
+    });
+
+    revalidatePath("/affiliate/dashboard");
+    return {
+      success: true,
+      message: "Application submitted successfully",
+      data: JSON.parse(JSON.stringify(affiliate)),
+    };
+  } catch (error) {
+    return { success: false, message: formatError(error) };
+  }
+}
+
+export async function getAffiliateAnalytics(dateRange?: {
+  from?: string;
+  to?: string;
+}) {
+  try {
+    await connectToDatabase();
+    const session = await getServerSession();
+    if (!session) throw new Error("User not authenticated");
+
+    const affiliate = await Affiliate.findOne({ user: session.user.id });
+    if (!affiliate)
+      return { success: false, message: "Affiliate profile not found" };
+
+    const matchFilter: any = {
+      affiliate: affiliate._id,
+      status: "earned",
+    };
+
+    if (dateRange?.from || dateRange?.to) {
+      matchFilter.createdAt = {};
+      if (dateRange?.from)
+        matchFilter.createdAt.$gte = new Date(dateRange.from);
+      if (dateRange?.to) {
+        const toDate = new Date(dateRange.to);
+        toDate.setHours(23, 59, 59, 999);
+        matchFilter.createdAt.$lte = toDate;
+      }
+    }
+
+    const earningsData = await AffiliateEarning.aggregate([
+      { $match: matchFilter },
+      {
+        $group: {
+          _id: {
+            year: { $year: "$createdAt" },
+            month: { $month: "$createdAt" },
+            day: { $dayOfMonth: "$createdAt" },
+          },
+          totalEarnings: { $sum: "$amount" },
+          orderCount: { $sum: 1 },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          date: {
+            $concat: [
+              { $toString: "$_id.year" },
+              "/",
+              { $toString: "$_id.month" },
+              "/",
+              { $toString: "$_id.day" },
+            ],
+          },
+          totalEarnings: 1,
+          orderCount: 1,
+        },
+      },
+      { $sort: { date: 1 } },
+    ]);
+
+    const statusDistribution = await AffiliateEarning.aggregate([
+      { $match: { affiliate: affiliate._id } },
+      { $group: { _id: "$status", value: { $sum: 1 } } },
+      { $project: { name: "$_id", value: 1, _id: 0 } },
+    ]);
+
+    const totalEarningsInPeriod = await AffiliateEarning.aggregate([
+      { $match: matchFilter },
+      { $group: { _id: null, total: { $sum: "$amount" } } },
+    ]);
+
+    const monthlyEarnings = await AffiliateEarning.aggregate([
+      { $match: { affiliate: affiliate._id } },
+      {
+        $group: {
+          _id: { $dateToString: { format: "%Y-%m", date: "$createdAt" } },
+          total: { $sum: "$amount" },
+        },
+      },
+      { $sort: { _id: -1 } },
+      { $limit: 6 },
+      {
+        $project: {
+          _id: 0,
+          label: "$_id",
+          value: "$total",
+        },
+      },
+    ]);
+
+    return {
+      success: true,
+      data: {
+        earningsData: JSON.parse(JSON.stringify(earningsData)),
+        statusDistribution: JSON.parse(JSON.stringify(statusDistribution)),
+        totalEarningsInPeriod: totalEarningsInPeriod[0]?.total || 0,
+        monthlyEarnings: JSON.parse(JSON.stringify(monthlyEarnings.reverse())),
+      },
+    };
+  } catch (error) {
+    return { success: false, message: formatError(error) };
+  }
+}
+
+export async function getAffiliateDashboardData(params?: {
+  payoutPage?: number;
+  payoutLimit?: number;
+}) {
+  try {
+    await connectToDatabase();
+    const session = await getServerSession();
+    if (!session) throw new Error("User not authenticated");
+
+    const affiliate = await Affiliate.findOne({ user: session.user.id });
+    if (!affiliate)
+      return { success: false, message: "Affiliate profile not found" };
+
+    const earnings = await AffiliateEarning.find({ affiliate: affiliate._id })
+      .sort({ createdAt: -1 })
+      .limit(10)
+      .populate("order", "trackingNumber totalPrice status");
+
+    const payoutPage = Math.max(1, Math.floor(Number(params?.payoutPage) || 1));
+    const payoutLimit = Math.max(
+      1,
+      Math.floor(Number(params?.payoutLimit) || 10),
+    );
+    const skipPayouts = (payoutPage - 1) * payoutLimit;
+
+    const payouts = await AffiliatePayout.find({ affiliate: affiliate._id })
+      .sort({ createdAt: -1 })
+      .skip(skipPayouts)
+      .limit(payoutLimit);
+
+    const totalPayouts = await AffiliatePayout.countDocuments({
+      affiliate: affiliate._id,
+    });
+
+    // Aggregate payout stats for summary cards
+    const payoutStats = await AffiliatePayout.aggregate([
+      { $match: { affiliate: affiliate._id } },
+      {
+        $group: {
+          _id: "$status",
+          count: { $sum: 1 },
+          amount: { $sum: "$amount" },
+        },
+      },
+    ]);
+
+    const payoutSummary = {
+      total: { count: 0, amount: 0 },
+      paid: { count: 0, amount: 0 },
+      pending: { count: 0, amount: 0 },
+      processing: { count: 0, amount: 0 },
+      rejected: { count: 0, amount: 0 },
+    };
+
+    payoutStats.forEach((s: any) => {
+      payoutSummary.total.count += s.count;
+      payoutSummary.total.amount += s.amount;
+      if (s._id === "paid")
+        payoutSummary.paid = { count: s.count, amount: s.amount };
+      if (s._id === "pending")
+        payoutSummary.pending = { count: s.count, amount: s.amount };
+      if (s._id === "processing")
+        payoutSummary.processing = { count: s.count, amount: s.amount };
+      if (s._id === "rejected")
+        payoutSummary.rejected = { count: s.count, amount: s.amount };
+    });
+
+    return {
+      success: true,
+      data: {
+        affiliate: JSON.parse(JSON.stringify(affiliate)),
+        recentEarnings: JSON.parse(JSON.stringify(earnings)),
+        recentPayouts: JSON.parse(JSON.stringify(payouts)),
+        payoutTotalPages: Math.ceil(totalPayouts / payoutLimit),
+        payoutSummary,
+      },
+    };
+  } catch (error) {
+    return { success: false, message: formatError(error) };
+  }
+}
+
+export async function getAffiliateByCode(code: string) {
+  await connectToDatabase();
+  const affiliate = await Affiliate.findOne({
+    affiliateCode: code,
+    status: "approved",
+  }).lean();
+  if (!affiliate) return null;
+  return {
+    ...affiliate,
+    _id: affiliate._id.toString(),
+    createdAt: affiliate.createdAt?.toISOString(),
+    updatedAt: affiliate.updatedAt?.toISOString(),
+  };
+}
+
+export async function isApprovedAffiliate() {
+  try {
+    await connectToDatabase();
+    const session = await getServerSession();
+    if (!session) return false;
+
+    const affiliate = await Affiliate.findOne({ user: session.user.id });
+    return affiliate?.status === "approved";
+  } catch (error) {
+    console.error("Error checking affiliate status:", error);
+    return false;
+  }
+}
+
+export async function getAffiliateStatus() {
+  try {
+    await connectToDatabase();
+    const session = await getServerSession();
+    if (!session) return { exists: false };
+
+    const affiliate = await Affiliate.findOne({ user: session.user.id }).lean();
+    if (!affiliate) return { exists: false };
+
+    return {
+      exists: true,
+      status: affiliate.status as string,
+      affiliateCode: affiliate.affiliateCode,
+      paymentDetails: affiliate.paymentDetails,
+      adminNote: affiliate.adminNote || "",
+    };
+  } catch (error) {
+    console.error("Error getting affiliate status:", error);
+    return { exists: false, error: true, message: formatError(error) };
+  }
+}
+
+export async function createPayoutRequest(data: any): Promise<ActionState> {
+  const connection = await connectToDatabase();
+  const session = await connection.startSession();
+  session.startTransaction();
+
+  try {
+    const userSession = await getServerSession();
+    if (!userSession) throw new Error("User not authenticated");
+
+    const affiliate = await Affiliate.findOne({
+      user: userSession.user.id,
+    }).session(session);
+    if (!affiliate || affiliate.status !== "approved") {
+      throw new Error("Only approved affiliates can request payouts");
+    }
+
+    const { affiliate: settings } = await getSetting();
+    const validated = AffiliatePayoutInputSchema.safeParse(data);
+    if (!validated.success) {
+      return {
+        success: false,
+        message: "Validation failed",
+        errors: flattenZodErrors(validated.error),
+      };
+    }
+    const validatedData = validated.data;
+
+    if (validatedData.amount < settings.minWithdrawalAmount) {
+      throw new Error(
+        `Minimum withdrawal amount is ${settings.minWithdrawalAmount}`,
+      );
+    }
+
+    if (validatedData.amount > affiliate.earningsBalance) {
+      throw new Error("Insufficient balance");
+    }
+
+    const isWalletTransfer = validatedData.paymentMethod === "Wallet";
+    const paymentDetails = isWalletTransfer
+      ? { ...validatedData.paymentDetails, recipient: "Internal Wallet" }
+      : validatedData.paymentDetails;
+
+    const payout = await AffiliatePayout.create(
+      [
+        {
+          affiliate: affiliate._id,
+          amount: validatedData.amount,
+          paymentMethod: validatedData.paymentMethod,
+          paymentDetails,
+          status: isWalletTransfer ? "paid" : "pending",
+        },
+      ],
+      { session },
+    );
+
+    // Deduct from affiliate earnings balance
+    affiliate.earningsBalance -= validatedData.amount;
+    await affiliate.save({ session });
+
+    let userForNotification = null;
+
+    if (isWalletTransfer) {
+      const user = await User.findById(userSession.user.id).session(session);
+      if (!user) throw new Error("User not found");
+
+      const balanceBefore = user.walletBalance || 0;
+      user.walletBalance = balanceBefore + validatedData.amount;
+      await user.save({ session });
+
+      await WalletTransaction.create(
+        [
+          {
+            user: user._id,
+            amount: validatedData.amount,
+            reason: "Affiliate earnings transfer to wallet",
+            source: "affiliate_transfer",
+            balanceBefore,
+            balanceAfter: user.walletBalance,
+          },
+        ],
+        { session },
+      );
+      userForNotification = user;
+    }
+
+    await session.commitTransaction();
+
+    if (isWalletTransfer && userForNotification) {
+      // Notify about processed payout
+      const phone = (userForNotification.addresses as any)?.[0]?.phone;
+      await sendAffiliatePayoutNotification({
+        email: userForNotification.email,
+        name: userForNotification.name,
+        amount: validatedData.amount,
+        paymentMethod: "Wallet",
+        phone,
+      });
+    } else if (!isWalletTransfer) {
+      // Notify admin about new payout request
+      await sendAdminEventNotification({
+        title: "New payout request",
+        description: `${userSession.user.name || "An affiliate"} requested a payout of ${formatCurrency(validatedData.amount)} via ${validatedData.paymentMethod}.`,
+        href: "/admin/payouts",
+        meta: "Payout pending",
+        createdAt: payout[0].createdAt.toISOString(),
+      });
+    }
+
+    revalidatePath("/affiliate/payouts");
+    revalidatePath("/affiliate/dashboard");
+    revalidatePath("/account/wallet");
+
+    return {
+      success: true,
+      message: isWalletTransfer
+        ? "Earnings transferred to wallet successfully"
+        : "Payout request submitted",
+      data: JSON.parse(JSON.stringify(payout[0])),
+    };
+  } catch (error) {
+    if (session.inTransaction()) {
+      await session.abortTransaction();
+    }
+    return { success: false, message: formatError(error) };
+  } finally {
+    session.endSession();
+  }
+}
+
+// Admin Actions
+export async function getAllAffiliates({
+  page = 1,
+  limit = 20,
+  status,
+  query,
+  from,
+  to,
+}: {
+  page?: number;
+  limit?: number;
+  status?: string;
+  query?: string;
+  from?: string;
+  to?: string;
+}) {
+  try {
+    await connectToDatabase();
+    const session = await getServerSession();
+    if (session?.user?.role !== "ADMIN") throw new Error("Unauthorized");
+
+    const filter: any = {};
+    if (status && status !== "all") {
+      filter.status = status;
+    }
+
+    if (from || to) {
+      filter.createdAt = {};
+      if (from) filter.createdAt.$gte = new Date(from);
+      if (to) {
+        const toDate = new Date(to);
+        toDate.setHours(23, 59, 59, 999);
+        filter.createdAt.$lte = toDate;
+      }
+    }
+
+    if (query) {
+      const escapedQuery = escapeRegExp(query);
+      const regex = new RegExp(escapedQuery, "i");
+      const users = await User.find({
+        $or: [{ name: regex }, { email: regex }],
+      }).select("_id");
+      const userIds = users.map((u: any) => u._id);
+
+      filter.$or = [{ affiliateCode: regex }, { user: { $in: userIds } }];
+    }
+
+    const affiliates = await Affiliate.find(filter)
+      .populate("user", "name email")
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .lean();
+
+    const safeAffiliates = affiliates.map((affiliate) => ({
+      ...affiliate,
+      _id: affiliate._id.toString(),
+      createdAt: affiliate.createdAt?.toISOString(),
+      updatedAt: affiliate.updatedAt?.toISOString(),
+      user: affiliate.user
+        ? {
+            ...affiliate.user,
+            _id: (affiliate.user as any)._id?.toString(),
+          }
+        : affiliate.user,
+    }));
+
+    const count = await Affiliate.countDocuments(filter);
+
+    return {
+      success: true,
+      data: safeAffiliates,
+      totalPages: Math.ceil(count / limit),
+      totalAffiliates: count,
+    };
+  } catch (error) {
+    return { success: false, message: formatError(error) };
+  }
+}
+
+export async function getAffiliateAdminStats(dateRange?: {
+  from?: string;
+  to?: string;
+}) {
+  try {
+    await connectToDatabase();
+    const session = await getServerSession();
+    if (session?.user?.role !== "ADMIN") throw new Error("Unauthorized");
+
+    const from = dateRange?.from ? new Date(dateRange.from) : undefined;
+    const to = dateRange?.to ? new Date(dateRange.to) : undefined;
+    if (to) to.setHours(23, 59, 59, 999);
+
+    // 1. Status counts
+    const statusCounts = await Affiliate.aggregate([
+      { $group: { _id: "$status", count: { $sum: 1 } } },
+    ]);
+    const statusStats = {
+      total: 0,
+      approved: 0,
+      pending: 0,
+      rejected: 0,
+    };
+    statusCounts.forEach((s) => {
+      statusStats.total += s.count;
+      if (s._id === "approved") statusStats.approved = s.count;
+      if (s._id === "pending") statusStats.pending = s.count;
+      if (s._id === "rejected") statusStats.rejected = s.count;
+    });
+
+    // 2 & 3. Earnings in date range & Period Leaderboard
+    const earningsFilter: any = { status: "earned" };
+    if (from || to) {
+      earningsFilter.createdAt = {};
+      if (from) earningsFilter.createdAt.$gte = from;
+      if (to) earningsFilter.createdAt.$lte = to;
+    }
+
+    const periodEarningsAggregate = await AffiliateEarning.aggregate([
+      { $match: earningsFilter },
+      { $group: { _id: "$affiliate", total: { $sum: "$amount" } } },
+      { $sort: { total: -1 } },
+      { $limit: 10 },
+      {
+        $lookup: {
+          from: "affiliates",
+          localField: "_id",
+          foreignField: "_id",
+          as: "affiliateInfo",
+        },
+      },
+      { $unwind: { path: "$affiliateInfo", preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: "users",
+          localField: "affiliateInfo.user",
+          foreignField: "_id",
+          as: "userInfo",
+        },
+      },
+      { $unwind: { path: "$userInfo", preserveNullAndEmptyArrays: true } },
+      {
+        $project: {
+          _id: 1,
+          total: 1,
+          code: { $ifNull: ["$affiliateInfo.affiliateCode", "DELETED"] },
+          name: { $ifNull: ["$userInfo.name", "Deleted User"] },
+        },
+      },
+    ]);
+
+    const totalEarnedInPeriodAggregate = await AffiliateEarning.aggregate([
+      { $match: earningsFilter },
+      { $group: { _id: null, total: { $sum: "$amount" } } },
+    ]);
+    const totalEarnedInPeriod = totalEarnedInPeriodAggregate[0]?.total || 0;
+
+    // 4. Total amount due (unpaid earnings balance)
+    const totalDueAggregate = await Affiliate.aggregate([
+      { $group: { _id: null, total: { $sum: "$earningsBalance" } } },
+    ]);
+    const totalDue = totalDueAggregate[0]?.total || 0;
+
+    // 5. Monthly paid payouts
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
+    sixMonthsAgo.setDate(1);
+    sixMonthsAgo.setHours(0, 0, 0, 0);
+
+    const monthlyPayouts = await AffiliatePayout.aggregate([
+      {
+        $match: {
+          status: "paid",
+          createdAt: { $gte: sixMonthsAgo },
+        },
+      },
+      {
+        $group: {
+          _id: { $dateToString: { format: "%Y-%m", date: "$createdAt" } },
+          total: { $sum: "$amount" },
+        },
+      },
+      { $sort: { _id: 1 } },
+      {
+        $project: {
+          label: "$_id",
+          value: "$total",
+          _id: 0,
+        },
+      },
+    ]);
+
+    // 6. Highest earners of all time
+    const allTimeLeaderboard = await Affiliate.find({
+      totalEarnings: { $gt: 0 },
+    })
+      .populate("user", "name")
+      .sort({ totalEarnings: -1 })
+      .limit(10)
+      .select("affiliateCode totalEarnings user");
+
+    const formattedAllTimeLeaderboard = allTimeLeaderboard.map((a: any) => ({
+      _id: a._id,
+      total: a.totalEarnings,
+      code: a.affiliateCode,
+      name: a.user?.name || "Deleted User",
+    }));
+
+    return {
+      success: true,
+      data: {
+        statusStats,
+        periodLeaderboard: JSON.parse(JSON.stringify(periodEarningsAggregate)),
+        totalEarnedInPeriod,
+        totalDue,
+        monthlyPayouts: JSON.parse(JSON.stringify(monthlyPayouts)),
+        allTimeLeaderboard: JSON.parse(
+          JSON.stringify(formattedAllTimeLeaderboard),
+        ),
+      },
+    };
+  } catch (error) {
+    return { success: false, message: formatError(error) };
+  }
+}
+
+export async function updateAffiliateStatus(
+  id: string,
+  status: "approved" | "rejected",
+  adminNote?: string,
+) {
+  const connection = await connectToDatabase();
+  const session = await connection.startSession();
+  session.startTransaction();
+
+  try {
+    const userSession = await getServerSession();
+    if (userSession?.user?.role !== "ADMIN") throw new Error("Unauthorized");
+
+    const update: any = { status };
+    if (status === "rejected") {
+      if (!adminNote || adminNote.trim().length === 0) {
+        throw new Error("A rejection reason is mandatory");
+      }
+      update.adminNote = adminNote.trim();
+    } else if (status === "approved") {
+      update.adminNote = ""; // Clear stale notes on approval
+    }
+
+    const affiliate = await Affiliate.findByIdAndUpdate(id, update, {
+      new: true,
+      session,
+    }).populate("user", "name email");
+    if (!affiliate) throw new Error("Affiliate not found");
+
+    // Sync isAffiliate status to User model
+    await User.findByIdAndUpdate(
+      affiliate.user,
+      {
+        isAffiliate: status === "approved",
+      },
+      { session },
+    );
+
+    await session.commitTransaction();
+
+    const user = affiliate.user as unknown as {
+      email: string;
+      name: string;
+      addresses?: any[];
+    };
+    const phone = user.addresses?.[0]?.phone;
+
+    if (status === "approved") {
+      await sendAffiliateApprovalNotification({
+        email: user.email,
+        name: user.name,
+        affiliateCode: affiliate.affiliateCode,
+        phone,
+      });
+    }
+
+    if (status === "rejected") {
+      await sendAffiliateRejectedNotification({
+        email: user.email,
+        name: user.name,
+        affiliateCode: affiliate.affiliateCode,
+        reason: update.adminNote,
+        phone,
+      });
+    }
+
+    revalidatePath("/admin/affiliates");
+    return {
+      success: true,
+      message: `Affiliate ${status}`,
+      data: JSON.parse(JSON.stringify(affiliate)),
+    };
+  } catch (error) {
+    await session.abortTransaction();
+    return { success: false, message: formatError(error) };
+  } finally {
+    session.endSession();
+  }
+}
+
+export async function getAllPayouts({
+  page = 1,
+  limit = 20,
+  status,
+  query,
+  from,
+  to,
+}: {
+  page?: number;
+  limit?: number;
+  status?: string;
+  query?: string;
+  from?: string;
+  to?: string;
+}) {
+  try {
+    await connectToDatabase();
+    const session = await getServerSession();
+    if (session?.user?.role !== "ADMIN") throw new Error("Unauthorized");
+
+    const filter: any = {};
+    if (status && status !== "all") {
+      filter.status = status;
+    }
+
+    if (from || to) {
+      filter.createdAt = {};
+      if (from) filter.createdAt.$gte = new Date(from);
+      if (to) {
+        const toDate = new Date(to);
+        toDate.setHours(23, 59, 59, 999);
+        filter.createdAt.$lte = toDate;
+      }
+    }
+
+    if (query) {
+      const escapedQuery = escapeRegExp(query);
+      const regex = new RegExp(escapedQuery, "i");
+      const users = await User.find({
+        $or: [{ name: regex }, { email: regex }],
+      }).select("_id");
+      const userIds = users.map((u: any) => u._id);
+
+      const affiliates = await Affiliate.find({
+        $or: [{ affiliateCode: regex }, { user: { $in: userIds } }],
+      }).select("_id");
+      const affiliateIds = affiliates.map((a: any) => a._id);
+
+      filter.$or = [{ affiliate: { $in: affiliateIds } }];
+    }
+
+    const payouts = await AffiliatePayout.find(filter)
+      .populate({
+        path: "affiliate",
+        populate: { path: "user", select: "name email" },
+      })
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit);
+
+    const count = await AffiliatePayout.countDocuments(filter);
+
+    return {
+      success: true,
+      data: JSON.parse(JSON.stringify(payouts)),
+      totalPages: Math.ceil(count / limit),
+      totalPayouts: count,
+    };
+  } catch (error) {
+    return { success: false, message: formatError(error) };
+  }
+}
+
+export async function getPayoutAdminStats(dateRange?: {
+  from?: string;
+  to?: string;
+}) {
+  try {
+    await connectToDatabase();
+    const session = await getServerSession();
+    if (session?.user?.role !== "ADMIN") throw new Error("Unauthorized");
+
+    const filter: any = {};
+    if (dateRange?.from || dateRange?.to) {
+      filter.createdAt = {};
+      if (dateRange?.from) filter.createdAt.$gte = new Date(dateRange.from);
+      if (dateRange?.to) {
+        const toDate = new Date(dateRange.to);
+        toDate.setHours(23, 59, 59, 999);
+        filter.createdAt.$lte = toDate;
+      }
+    }
+
+    const stats = await AffiliatePayout.aggregate([
+      { $match: filter },
+      {
+        $group: {
+          _id: "$status",
+          count: { $sum: 1 },
+          amount: { $sum: "$amount" },
+        },
+      },
+    ]);
+
+    const statusStats = {
+      total: { count: 0, amount: 0 },
+      paid: { count: 0, amount: 0 },
+      pending: { count: 0, amount: 0 },
+      processing: { count: 0, amount: 0 },
+      rejected: { count: 0, amount: 0 },
+    };
+
+    stats.forEach((s) => {
+      statusStats.total.count += s.count;
+      statusStats.total.amount += s.amount;
+      if (s._id === "paid")
+        statusStats.paid = { count: s.count, amount: s.amount };
+      if (s._id === "pending")
+        statusStats.pending = { count: s.count, amount: s.amount };
+      if (s._id === "processing")
+        statusStats.processing = { count: s.count, amount: s.amount };
+      if (s._id === "rejected")
+        statusStats.rejected = { count: s.count, amount: s.amount };
+    });
+
+    return {
+      success: true,
+      data: statusStats,
+    };
+  } catch (error) {
+    return { success: false, message: formatError(error) };
+  }
+}
+
+export async function deleteAffiliate(id: string) {
+  try {
+    await connectToDatabase();
+    const session = await getServerSession();
+    if (session?.user?.role !== "ADMIN") throw new Error("Unauthorized");
+
+    const affiliate = await Affiliate.findById(id);
+    if (!affiliate) throw new Error("Affiliate not found");
+
+    // Sync isAffiliate status to User model (setting to false as affiliate is deleted)
+    await User.findByIdAndUpdate(affiliate.user, {
+      isAffiliate: false,
+    });
+
+    // Optionally check if they have earnings/payouts before deleting or just delete everything
+    await AffiliateEarning.deleteMany({ affiliate: id });
+    await AffiliatePayout.deleteMany({ affiliate: id });
+    await Affiliate.findByIdAndDelete(id);
+
+    revalidatePath("/admin/affiliates");
+    return {
+      success: true,
+      message: "Affiliate and related data deleted successfully",
+    };
+  } catch (error) {
+    return { success: false, message: formatError(error) };
+  }
+}
+
+export async function incrementAffiliateUsage(affiliateId: string) {
+  await connectToDatabase();
+  await Affiliate.findByIdAndUpdate(affiliateId, { $inc: { usageCount: 1 } });
+}
+
+export async function decrementAffiliateUsage(affiliateId: string) {
+  await connectToDatabase();
+  await Affiliate.findOneAndUpdate(
+    { _id: affiliateId, usageCount: { $gt: 0 } },
+    { $inc: { usageCount: -1 } },
+  );
+}
+
+export async function deletePayoutRequest(id: string) {
+  const connection = await connectToDatabase();
+  const session = await connection.startSession();
+  session.startTransaction();
+
+  try {
+    const userSession = await getServerSession();
+    if (userSession?.user?.role !== "ADMIN") throw new Error("Unauthorized");
+
+    const payout = await AffiliatePayout.findById(id).session(session);
+    if (!payout) throw new Error("Payout request not found");
+
+    // Enforce allowed statuses for deletion
+    if (payout.status !== "pending" && payout.status !== "processing") {
+      throw new Error(`Cannot delete a payout with status: ${payout.status}`);
+    }
+
+    // Refund affiliate balance before deletion
+    const affiliate = await Affiliate.findById(payout.affiliate).session(
+      session,
+    );
+    if (affiliate) {
+      affiliate.earningsBalance += payout.amount;
+      await affiliate.save({ session });
+    }
+
+    await AffiliatePayout.findByIdAndDelete(id).session(session);
+
+    await session.commitTransaction();
+    revalidatePath("/admin/payouts");
+    revalidatePath("/affiliate/payouts");
+    revalidatePath("/affiliate/dashboard");
+
+    return {
+      success: true,
+      message: "Payout request deleted and balance refunded successfully",
+    };
+  } catch (error) {
+    await session.abortTransaction();
+    return { success: false, message: formatError(error) };
+  } finally {
+    session.endSession();
+  }
+}
+
+export async function updatePayoutStatus(
+  id: string,
+  status: "paid" | "rejected",
+  adminNote?: string,
+) {
+  try {
+    await connectToDatabase();
+    const session = await getServerSession();
+    if (session?.user?.role !== "ADMIN") throw new Error("Unauthorized");
+
+    const payout = await AffiliatePayout.findById(id);
+    if (!payout) throw new Error("Payout not found");
+    if (payout.status !== "pending" && payout.status !== "processing") {
+      throw new Error("Payout already processed");
+    }
+
+    if (status === "rejected") {
+      if (!adminNote || adminNote.trim().length === 0) {
+        throw new Error("A rejection reason is mandatory");
+      }
+      payout.adminNote = adminNote.trim();
+
+      // Refund affiliate balance
+      const affiliate = await Affiliate.findById(payout.affiliate);
+      if (affiliate) {
+        affiliate.earningsBalance += payout.amount;
+        await affiliate.save();
+      }
+    } else if (status === "paid") {
+      payout.adminNote = ""; // Clear stale notes on payment
+    }
+
+    payout.status = status;
+    await payout.save();
+
+    if (status === "paid") {
+      const populatedPayout = await AffiliatePayout.findById(
+        payout._id,
+      ).populate({
+        path: "affiliate",
+        populate: { path: "user", select: "name email" },
+      });
+
+      if (populatedPayout) {
+        const affiliate = populatedPayout.affiliate as any;
+        const user = affiliate.user as unknown as {
+          email: string;
+          name: string;
+          addresses?: any[];
+        };
+        const phone = user.addresses?.[0]?.phone;
+        await sendAffiliatePayoutNotification({
+          email: user.email,
+          name: user.name,
+          amount: populatedPayout.amount,
+          paymentMethod: populatedPayout.paymentMethod,
+          phone,
+        });
+      }
+    }
+
+    revalidatePath("/admin/payouts");
+    return { success: true, message: `Payout ${status}` };
+  } catch (error) {
+    return { success: false, message: formatError(error) };
+  }
+}
