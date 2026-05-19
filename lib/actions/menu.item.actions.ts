@@ -413,6 +413,38 @@ export async function getAllCategories(): Promise<string[]> {
   );
 }
 
+export async function getAllCategoriesForStaffDashboard(): Promise<string[]> {
+  "use cache: private";
+  cacheLife("minutes");
+
+  const scope = await getStaffScope();
+  await connectToDatabase();
+
+  const match: Record<string, unknown> = {
+    category: { $exists: true, $ne: "" },
+  };
+
+  if (scope.role === "RESTAURANT") {
+    match.restaurant = new mongoose.Types.ObjectId(scope.restaurantId);
+  }
+
+  const categories = await MenuItem.aggregate([
+    { $match: match },
+    { $project: { category: { $trim: { input: { $toLower: "$category" } } } } },
+    { $group: { _id: "$category" } },
+    { $sort: { _id: 1 } },
+    { $project: { category: "$_id", _id: 0 } },
+  ]);
+
+  return categories.map((c) =>
+    c.category
+      .split(/\s+|-/)
+      .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(" ")
+      .trim(),
+  );
+}
+
 export async function getMenuItemsForCard({
   tag,
   limit = 4,
@@ -589,6 +621,7 @@ export async function getAllMenuItems({
   price,
   rating,
   sort,
+  restaurantId,
 }: {
   query: string;
   category: string;
@@ -598,6 +631,7 @@ export async function getAllMenuItems({
   price?: string;
   rating?: string;
   sort?: string;
+  restaurantId?: string;
 }) {
   "use cache";
   cacheLife("hours");
@@ -664,6 +698,10 @@ export async function getAllMenuItems({
       : {};
 
   const isPublishedFilter = { isPublished: true };
+  const restaurantFilter =
+    restaurantId && mongoose.Types.ObjectId.isValid(restaurantId)
+      ? { restaurant: new mongoose.Types.ObjectId(restaurantId) }
+      : {};
 
   const sortOrder: Record<string, 1 | -1> =
     sort === "best-selling"
@@ -678,6 +716,7 @@ export async function getAllMenuItems({
 
   const filters = {
     ...isPublishedFilter,
+    ...restaurantFilter,
     ...queryFilter,
     ...categoryFilter,
     ...tagFilter,
@@ -698,6 +737,88 @@ export async function getAllMenuItems({
     from: skip + 1,
     to: skip + menuItems.length,
   };
+}
+
+export async function getAllCategoriesForStorefrontRestaurant(
+  restaurantId: string,
+): Promise<string[]> {
+  "use cache";
+  cacheLife("hours");
+  cacheTag("menuItems");
+
+  await connectToDatabase();
+
+  if (!mongoose.Types.ObjectId.isValid(restaurantId)) {
+    return [];
+  }
+
+  const categories = await MenuItem.aggregate([
+    {
+      $match: {
+        restaurant: new mongoose.Types.ObjectId(restaurantId),
+        isPublished: true,
+        category: { $exists: true, $ne: "" },
+      },
+    },
+    { $project: { category: { $trim: { input: { $toLower: "$category" } } } } },
+    { $group: { _id: "$category" } },
+    { $sort: { _id: 1 } },
+    { $project: { category: "$_id", _id: 0 } },
+  ]);
+
+  return categories.map((c) =>
+    c.category
+      .split(/\s+|-/)
+      .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(" ")
+      .trim(),
+  );
+}
+
+export async function getAllTagsForStorefrontRestaurant(restaurantId: string) {
+  "use cache";
+  cacheLife("hours");
+  cacheTag("menuItems");
+
+  await connectToDatabase();
+
+  if (!mongoose.Types.ObjectId.isValid(restaurantId)) {
+    return [];
+  }
+
+  const tags = await MenuItem.aggregate([
+    {
+      $match: {
+        restaurant: new mongoose.Types.ObjectId(restaurantId),
+        isPublished: true,
+        tags: { $exists: true, $ne: [] },
+      },
+    },
+    { $unwind: "$tags" },
+    {
+      $set: {
+        tags: {
+          $trim: { input: { $toLower: "$tags" } },
+        },
+      },
+    },
+    { $group: { _id: "$tags" } },
+    { $sort: { _id: 1 } },
+    { $project: { tag: "$_id", _id: 0 } },
+  ]);
+
+  return tags.map(({ tag }) =>
+    tag
+      .split(" ")
+      .map((word: string) =>
+        word
+          .split("-")
+          .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+          .join("-"),
+      )
+      .join(" ")
+      .trim(),
+  );
 }
 
 export async function getAllTags() {
@@ -748,26 +869,81 @@ export async function getAllTags() {
   );
 }
 
-export async function getAllTagsForAdminMenuItemCreate() {
-  "use cache";
-  cacheLife("hours");
-  cacheTag("menuItems");
+export async function getAllTagsForStaffDashboard() {
+  "use cache: private";
+  cacheLife("minutes");
+
+  const scope = await getStaffScope();
   await connectToDatabase();
 
+  const match: Record<string, unknown> = {
+    tags: { $exists: true, $ne: [] },
+  };
+
+  if (scope.role === "RESTAURANT") {
+    match.restaurant = new mongoose.Types.ObjectId(scope.restaurantId);
+  }
+
   const tags = await MenuItem.aggregate([
-    // Ensure tags exist and are not empty
-    { $match: { tags: { $exists: true, $ne: [] } } },
-    // Unwind the tags array
+    { $match: match },
     { $unwind: "$tags" },
-    // Group by tag for uniqueness
+    {
+      $set: {
+        tags: {
+          $trim: { input: { $toLower: "$tags" } },
+        },
+      },
+    },
     { $group: { _id: "$tags" } },
-    // Sort alphabetically (optional, can remove if you want DB order)
     { $sort: { _id: 1 } },
-    // Format output
     { $project: { tag: "$_id", _id: 0 } },
   ]);
 
-  return tags.map((t) => t.tag);
+  return tags.map(({ tag }) =>
+    tag
+      .split(" ")
+      .map((word: string) =>
+        word
+          .split("-")
+          .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+          .join("-"),
+      )
+      .join(" ")
+      .trim(),
+  );
+}
+
+export async function getAllTagsForAdminMenuItemCreate() {
+  "use cache: private";
+  cacheLife("minutes");
+  const scope = await getStaffScope();
+  await connectToDatabase();
+
+  const match: Record<string, unknown> = {
+    tags: { $exists: true, $ne: [] },
+  };
+  if (scope.role === "RESTAURANT") {
+    match.restaurant = new mongoose.Types.ObjectId(scope.restaurantId);
+  }
+
+  const tags = await MenuItem.aggregate([
+    { $match: match },
+    { $unwind: "$tags" },
+    {
+      $set: {
+        tags: {
+          $trim: { input: "$tags" },
+        },
+      },
+    },
+    { $group: { _id: "$tags" } },
+    { $sort: { _id: 1 } },
+    { $project: { tag: "$_id", _id: 0 } },
+  ]);
+
+  return tags
+    .map((t) => t.tag)
+    .filter((tag): tag is string => Boolean(tag?.trim()));
 }
 
 export async function getMenuItemsByCategory({

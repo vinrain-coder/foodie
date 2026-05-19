@@ -94,6 +94,7 @@ const Menu = ({ forAdmin = false }: { forAdmin?: boolean }) => {
                     {[
                       { href: "/", label: "Home" },
                       { href: "/search", label: "Shop all menu items" },
+                      { href: "/restaurants", label: "Restaurants" },
                       { href: "/categories", label: "Categories" },
                       { href: "/compare", label: "Compare menu items" },
                       { href: "/blogs", label: "Blogs" },

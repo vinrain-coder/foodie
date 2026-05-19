@@ -6,6 +6,7 @@ import Blog from "@/lib/db/models/blog.model";
 import Category from "@/lib/db/models/category.model";
 import Tag from "@/lib/db/models/tag.model";
 import WebPage from "@/lib/db/models/web-page.model";
+import Restaurant from "@/lib/db/models/restaurant.model";
 import { toAbsoluteUrl } from "@/lib/seo";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
@@ -20,6 +21,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     "/coupons",
     "/track",
     "/search",
+    "/restaurants",
     "/support",
     "/affiliate",
     "/page",
@@ -40,6 +42,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     lastModified: menuItem.updatedAt || now,
     changeFrequency: "weekly" as const,
     priority: 0.8,
+  }));
+
+  const restaurants = await Restaurant.find(
+    { status: "approved", isApproved: true, isActive: true },
+    "slug updatedAt",
+  );
+  const restaurantRoutes = restaurants.map((restaurant) => ({
+    url: toAbsoluteUrl(site.url, `/restaurants/${restaurant.slug}`),
+    lastModified: restaurant.updatedAt || now,
+    changeFrequency: "weekly" as const,
+    priority: 0.7,
   }));
 
   // Dynamic blog routes
@@ -82,6 +95,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const routes = [
     ...staticRoutes,
     ...menuItemRoutes,
+    ...restaurantRoutes,
     ...blogRoutes,
     ...categoryRoutes,
     ...tagRoutes,

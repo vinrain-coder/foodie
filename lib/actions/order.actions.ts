@@ -2048,16 +2048,56 @@ export const calcDeliveryDateAndPrice = async ({
 
 // GET ORDERS BY USER
 export async function getOrderSummary(date: DateRange) {
-  "use cache";
-  cacheLife("hours");
+  "use cache: private";
+  cacheLife("minutes");
   await connectToDatabase();
+  const scope = await getStaffScope();
+  const restaurantFilter = buildRestaurantOrderFilter(scope);
+  const restaurantMenuItemFilter =
+    scope.role === "RESTAURANT"
+      ? { restaurant: new mongoose.Types.ObjectId(scope.restaurantId) }
+      : {};
 
   const query = {
+    ...restaurantFilter,
     createdAt: {
       $gte: date.from,
       $lte: date.to,
     },
   };
+
+  let reviewsCountPromise: Promise<number>;
+  if (scope.role === "RESTAURANT") {
+    reviewsCountPromise = MenuItem.find(restaurantMenuItemFilter)
+      .select("_id")
+      .lean()
+      .then((menuItems) => {
+        const ids = menuItems.map((item) => item._id);
+        if (ids.length === 0) return 0;
+        return Review.countDocuments({
+          menuItem: { $in: ids },
+          createdAt: query.createdAt,
+        });
+      });
+  } else {
+    reviewsCountPromise = Review.countDocuments(query);
+  }
+
+  let usersCountPromise: Promise<number>;
+  if (scope.role === "RESTAURANT") {
+    usersCountPromise = Promise.all([
+      Order.distinct("user", { ...query, user: { $ne: null } }),
+      Order.distinct("userEmail", {
+        ...query,
+        isGuest: true,
+        userEmail: { $exists: true, $ne: "" },
+      }),
+    ]).then(([registeredUsers, guestEmails]) => {
+      return registeredUsers.length + guestEmails.length;
+    });
+  } else {
+    usersCountPromise = User.countDocuments(query);
+  }
 
   const [
     ordersCount,
@@ -2068,14 +2108,18 @@ export async function getOrderSummary(date: DateRange) {
     ticketsCount,
   ] = await Promise.all([
     Order.countDocuments(query),
-    MenuItem.countDocuments(query),
-    User.countDocuments(query),
-    Review.countDocuments(query),
-    NewsletterSubscription.countDocuments({
-      ...query,
-      status: "subscribed",
-    }),
-    SupportTicket.countDocuments({ status: "open" }),
+    MenuItem.countDocuments({ ...query, ...restaurantMenuItemFilter }),
+    usersCountPromise,
+    reviewsCountPromise,
+    scope.role === "RESTAURANT"
+      ? Promise.resolve(0)
+      : NewsletterSubscription.countDocuments({
+          ...query,
+          status: "subscribed",
+        }),
+    scope.role === "RESTAURANT"
+      ? Promise.resolve(0)
+      : SupportTicket.countDocuments({ status: "open" }),
   ]);
 
   const totalSalesResult = await Order.aggregate([
@@ -2109,6 +2153,7 @@ export async function getOrderSummary(date: DateRange) {
   const monthlySales = await Order.aggregate([
     {
       $match: {
+        ...restaurantFilter,
         createdAt: {
           $gte: sixMonthEarlierDate,
         },
@@ -2130,28 +2175,45 @@ export async function getOrderSummary(date: DateRange) {
 
     { $sort: { label: 1 } },
   ]);
-  const topSalesCategories = await getTopSalesCategories(date);
-  const topSalesMenuItems = await getTopSalesMenuItems(date);
+  const topSalesCategories = await getTopSalesCategories(date, {
+    restaurantFilter,
+  });
+  const topSalesMenuItems = await getTopSalesMenuItems(date, {
+    restaurantFilter,
+  });
 
   const {
     common: { pageSize },
   } = await getSetting();
   const limit = pageSize;
-  const latestOrders = await Order.find()
+  const latestOrders = await Order.find(restaurantFilter)
     .populate("user", "name")
     .sort({ createdAt: "desc" })
     .limit(limit);
 
-  const latestReviews = await Review.find()
+  let latestReviewsQuery = Review.find();
+  if (scope.role === "RESTAURANT") {
+    const restaurantMenuItems = await MenuItem.find(restaurantMenuItemFilter)
+      .select("_id")
+      .lean();
+    const restaurantMenuItemIds = restaurantMenuItems.map((item) => item._id);
+    latestReviewsQuery = Review.find({
+      menuItem: { $in: restaurantMenuItemIds },
+    });
+  }
+  const latestReviews = await latestReviewsQuery
     .sort({ createdAt: "desc" })
     .limit(5)
     .populate("user", "name")
     .populate("menuItem", "name");
 
-  const latestSubscribers = await NewsletterSubscription.find()
-    .sort({ subscribedAt: "desc" })
-    .limit(5)
-    .lean();
+  const latestSubscribers =
+    scope.role === "RESTAURANT"
+      ? []
+      : await NewsletterSubscription.find()
+          .sort({ subscribedAt: "desc" })
+          .limit(5)
+          .lean();
 
   return {
     ordersCount,
@@ -2166,7 +2228,9 @@ export async function getOrderSummary(date: DateRange) {
       JSON.stringify(orderStatusDistribution),
     ),
     monthlySales: JSON.parse(JSON.stringify(monthlySales)),
-    salesChartData: JSON.parse(JSON.stringify(await getSalesChartData(date))),
+    salesChartData: JSON.parse(
+      JSON.stringify(await getSalesChartData(date, { restaurantFilter })),
+    ),
     topSalesCategories: JSON.parse(JSON.stringify(topSalesCategories)),
     topSalesMenuItems: JSON.parse(JSON.stringify(topSalesMenuItems)),
     latestOrders: JSON.parse(JSON.stringify(latestOrders)) as IOrderList[],
@@ -2175,12 +2239,15 @@ export async function getOrderSummary(date: DateRange) {
   };
 }
 
-async function getSalesChartData(date: DateRange) {
-  "use cache";
-  cacheLife("hours");
+async function getSalesChartData(
+  date: DateRange,
+  options?: { restaurantFilter?: Record<string, unknown> },
+) {
+  const restaurantFilter = options?.restaurantFilter ?? {};
   const result = await Order.aggregate([
     {
       $match: {
+        ...restaurantFilter,
         createdAt: {
           $gte: date.from,
           $lte: date.to,
@@ -2218,12 +2285,15 @@ async function getSalesChartData(date: DateRange) {
   return result;
 }
 
-async function getTopSalesMenuItems(date: DateRange) {
-  "use cache";
-  cacheLife("hours");
+async function getTopSalesMenuItems(
+  date: DateRange,
+  options?: { restaurantFilter?: Record<string, unknown> },
+) {
+  const restaurantFilter = options?.restaurantFilter ?? {};
   const result = await Order.aggregate([
     {
       $match: {
+        ...restaurantFilter,
         createdAt: {
           $gte: date.from,
           $lte: date.to,
@@ -2271,12 +2341,16 @@ async function getTopSalesMenuItems(date: DateRange) {
   return result;
 }
 
-async function getTopSalesCategories(date: DateRange, limit = 5) {
-  "use cache";
-  cacheLife("hours");
+async function getTopSalesCategories(
+  date: DateRange,
+  options?: { limit?: number; restaurantFilter?: Record<string, unknown> },
+) {
+  const restaurantFilter = options?.restaurantFilter ?? {};
+  const limit = options?.limit ?? 5;
   const result = await Order.aggregate([
     {
       $match: {
+        ...restaurantFilter,
         createdAt: {
           $gte: date.from,
           $lte: date.to,

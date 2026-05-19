@@ -4,7 +4,7 @@ import { Field, FieldLabel, FieldError } from "@/components/ui/field";
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { getAllTagsForAdminMenuItemCreate } from "@/lib/actions/tag.actions";
+import { getAllTagsForAdminMenuItemCreate } from "@/lib/actions/menu.item.actions";
 
 interface TagsInputProps {
   field: {

@@ -1,8 +1,8 @@
 import { Metadata } from "next";
 import {
-  getAllCategories,
   getAllMenuItemsForAdmin,
-  getAllTags,
+  getAllCategoriesForStaffDashboard,
+  getAllTagsForStaffDashboard,
   getMenuItemAdminStats,
 } from "@/lib/actions/menu.item.actions";
 import MenuItemStatsCards from "./menu-item-stats-cards";
@@ -59,8 +59,8 @@ export default async function AdminMenuItemsPage(props: {
       from,
       to,
     }),
-    getAllCategories(),
-    getAllTags(),
+    getAllCategoriesForStaffDashboard(),
+    getAllTagsForStaffDashboard(),
   ]);
 
   return (

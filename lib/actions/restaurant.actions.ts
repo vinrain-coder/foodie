@@ -16,6 +16,9 @@ import {
 import type { ActionState } from "@/types/action-state";
 import { getServerSession } from "../get-session";
 import { sendAdminEventNotification } from "../email/transactional";
+import { getSetting } from "./setting.actions";
+import MenuItem from "../db/models/menu.item.model";
+import mongoose from "mongoose";
 
 type RestaurantApplicationSnapshot = {
   name: string;
@@ -34,6 +37,24 @@ type RestaurantApplicationSnapshot = {
   acceptsDelivery: boolean;
   acceptsPickup: boolean;
   averagePrepTimeMinutes: number;
+};
+
+export type RestaurantSettingsInput = RestaurantApplicationSnapshot;
+
+export type StorefrontRestaurantCard = {
+  _id: string;
+  name: string;
+  slug: string;
+  logo: string;
+  coverImage: string;
+  location: string;
+  description: string;
+  cuisineTypes: string[];
+  acceptsDelivery: boolean;
+  acceptsPickup: boolean;
+  minimumOrderAmount: number;
+  deliveryFee: number;
+  menuItemsCount: number;
 };
 
 export type RestaurantApplicationStatusResponse =
@@ -60,6 +81,7 @@ export async function registerRestaurantApplication(
     await connectToDatabase();
     const session = await getServerSession();
     if (!session) throw new Error("User not authenticated");
+    if (session.user.role !== "RESTAURANT") throw new Error("Unauthorized");
 
     const validated = RestaurantApplicationInputSchema.safeParse(data);
     if (!validated.success) {
@@ -389,6 +411,324 @@ export async function updateRestaurantApplicationStatus(
       success: true,
       message: `Restaurant application ${status}`,
       data: JSON.parse(JSON.stringify(updated)),
+    };
+  } catch (error) {
+    return { success: false, message: formatError(error) };
+  }
+}
+
+export async function getStorefrontRestaurantFilters() {
+  await connectToDatabase();
+
+  const restaurants = await Restaurant.find({
+    status: "approved",
+    isApproved: true,
+    isActive: true,
+  })
+    .select("cuisineTypes location")
+    .lean();
+
+  const cuisineSet = new Set<string>();
+  const locationSet = new Set<string>();
+
+  for (const restaurant of restaurants) {
+    for (const cuisine of restaurant.cuisineTypes || []) {
+      if (cuisine?.trim()) cuisineSet.add(cuisine.trim());
+    }
+    if (restaurant.location?.trim()) {
+      locationSet.add(restaurant.location.trim());
+    }
+  }
+
+  return {
+    cuisines: Array.from(cuisineSet).sort((a, b) => a.localeCompare(b)),
+    locations: Array.from(locationSet).sort((a, b) => a.localeCompare(b)),
+  };
+}
+
+export async function getAllRestaurantsForStorefront({
+  query = "",
+  cuisine = "all",
+  service = "all",
+  location = "all",
+  sort = "newest",
+  page = 1,
+  limit,
+}: {
+  query?: string;
+  cuisine?: string;
+  service?: "all" | "delivery" | "pickup" | "both";
+  location?: string;
+  sort?: "newest" | "oldest" | "name-asc" | "name-desc";
+  page?: number;
+  limit?: number;
+}) {
+  await connectToDatabase();
+  const {
+    common: { pageSize },
+  } = await getSetting();
+  const pageLimit = limit || pageSize;
+
+  const filter: Record<string, any> = {
+    status: "approved",
+    isApproved: true,
+    isActive: true,
+  };
+
+  if (query && query !== "all") {
+    const escaped = escapeRegExp(query.trim());
+    const regex = new RegExp(escaped, "i");
+    filter.$or = [
+      { name: regex },
+      { slug: regex },
+      { location: regex },
+      { description: regex },
+      { cuisineTypes: regex },
+    ];
+  }
+
+  if (cuisine && cuisine !== "all") {
+    filter.cuisineTypes = {
+      $regex: new RegExp(`^${escapeRegExp(cuisine)}$`, "i"),
+    };
+  }
+
+  if (location && location !== "all") {
+    filter.location = {
+      $regex: new RegExp(escapeRegExp(location), "i"),
+    };
+  }
+
+  if (service === "delivery") {
+    filter.acceptsDelivery = true;
+  } else if (service === "pickup") {
+    filter.acceptsPickup = true;
+  } else if (service === "both") {
+    filter.acceptsDelivery = true;
+    filter.acceptsPickup = true;
+  }
+
+  const sortOrder: Record<string, 1 | -1> =
+    sort === "oldest"
+      ? { createdAt: 1 }
+      : sort === "name-asc"
+        ? { name: 1 }
+        : sort === "name-desc"
+          ? { name: -1 }
+          : { createdAt: -1 };
+
+  const skip = (Math.max(1, Number(page)) - 1) * pageLimit;
+
+  const [restaurants, totalRestaurants] = await Promise.all([
+    Restaurant.find(filter)
+      .sort(sortOrder)
+      .skip(skip)
+      .limit(pageLimit)
+      .lean(),
+    Restaurant.countDocuments(filter),
+  ]);
+
+  const restaurantIds = restaurants.map((restaurant) => restaurant._id);
+  const menuCounts = await MenuItem.aggregate([
+    {
+      $match: {
+        restaurant: { $in: restaurantIds },
+        isPublished: true,
+      },
+    },
+    { $group: { _id: "$restaurant", count: { $sum: 1 } } },
+  ]);
+  const countsMap = new Map(
+    menuCounts.map((row) => [row._id.toString(), row.count as number]),
+  );
+
+  const data: StorefrontRestaurantCard[] = restaurants.map((restaurant) => ({
+    _id: restaurant._id.toString(),
+    name: restaurant.name,
+    slug: restaurant.slug,
+    logo: restaurant.logo || "",
+    coverImage: restaurant.coverImage || "",
+    location: restaurant.location,
+    description: restaurant.description,
+    cuisineTypes: restaurant.cuisineTypes || [],
+    acceptsDelivery: restaurant.acceptsDelivery,
+    acceptsPickup: restaurant.acceptsPickup,
+    minimumOrderAmount: Number(restaurant.minimumOrderAmount || 0),
+    deliveryFee: Number(restaurant.deliveryFee || 0),
+    menuItemsCount: countsMap.get(restaurant._id.toString()) || 0,
+  }));
+
+  return {
+    data,
+    totalRestaurants,
+    totalPages: Math.max(1, Math.ceil(totalRestaurants / pageLimit)),
+    from: totalRestaurants === 0 ? 0 : skip + 1,
+    to: totalRestaurants === 0 ? 0 : skip + data.length,
+  };
+}
+
+export async function getRestaurantBySlugForStorefront(slug: string) {
+  await connectToDatabase();
+  const restaurant = await Restaurant.findOne({
+    slug,
+    status: "approved",
+    isApproved: true,
+    isActive: true,
+  }).lean();
+
+  if (!restaurant) return null;
+
+  const menuItemsCount = await MenuItem.countDocuments({
+    restaurant: new mongoose.Types.ObjectId(restaurant._id.toString()),
+    isPublished: true,
+  });
+
+  return {
+    _id: restaurant._id.toString(),
+    name: restaurant.name,
+    slug: restaurant.slug,
+    logo: restaurant.logo || "",
+    coverImage: restaurant.coverImage || "",
+    phone: restaurant.phone,
+    whatsapp: restaurant.whatsapp,
+    location: restaurant.location,
+    description: restaurant.description,
+    openingHours: restaurant.openingHours,
+    email: restaurant.email || "",
+    cuisineTypes: restaurant.cuisineTypes || [],
+    acceptsDelivery: restaurant.acceptsDelivery,
+    acceptsPickup: restaurant.acceptsPickup,
+    averagePrepTimeMinutes: Number(restaurant.averagePrepTimeMinutes || 30),
+    deliveryFee: Number(restaurant.deliveryFee || 0),
+    minimumOrderAmount: Number(restaurant.minimumOrderAmount || 0),
+    menuItemsCount,
+  };
+}
+
+export async function getRestaurantSettingsForOwner(): Promise<{
+  success: boolean;
+  data?: RestaurantSettingsInput;
+  message?: string;
+}> {
+  try {
+    await connectToDatabase();
+    const session = await getServerSession();
+    if (!session) throw new Error("User not authenticated");
+    if (session.user.role !== "RESTAURANT") throw new Error("Unauthorized");
+
+    const restaurant = await Restaurant.findOne({
+      ownerId: session.user.id,
+      status: "approved",
+      isApproved: true,
+      isActive: true,
+    }).lean();
+
+    if (!restaurant) {
+      throw new Error("Restaurant profile not found or inactive");
+    }
+
+    return {
+      success: true,
+      data: {
+        name: restaurant.name,
+        slug: restaurant.slug,
+        logo: restaurant.logo || "",
+        coverImage: restaurant.coverImage || "",
+        phone: restaurant.phone,
+        whatsapp: restaurant.whatsapp,
+        location: restaurant.location,
+        description: restaurant.description,
+        openingHours: restaurant.openingHours,
+        deliveryFee: Number(restaurant.deliveryFee || 0),
+        minimumOrderAmount: Number(restaurant.minimumOrderAmount || 0),
+        email: restaurant.email || "",
+        cuisineTypes: restaurant.cuisineTypes || [],
+        acceptsDelivery: restaurant.acceptsDelivery,
+        acceptsPickup: restaurant.acceptsPickup,
+        averagePrepTimeMinutes: Number(
+          restaurant.averagePrepTimeMinutes || 30,
+        ),
+      },
+    };
+  } catch (error) {
+    return { success: false, message: formatError(error) };
+  }
+}
+
+export async function updateRestaurantSettingsForOwner(
+  input: unknown,
+): Promise<ActionState> {
+  try {
+    await connectToDatabase();
+    const session = await getServerSession();
+    if (!session) throw new Error("User not authenticated");
+
+    const validated = RestaurantApplicationInputSchema.safeParse(input);
+    if (!validated.success) {
+      return {
+        success: false,
+        message: "Validation failed",
+        errors: flattenZodErrors(validated.error),
+      };
+    }
+
+    const payload = {
+      ...validated.data,
+      slug: toSlug(validated.data.slug),
+    };
+
+    const restaurant = await Restaurant.findOne({
+      ownerId: session.user.id,
+      status: "approved",
+      isApproved: true,
+      isActive: true,
+    });
+
+    if (!restaurant) {
+      throw new Error("Restaurant profile not found or inactive");
+    }
+
+    const conflictingSlug = await Restaurant.findOne({
+      slug: payload.slug,
+      _id: { $ne: restaurant._id },
+    })
+      .select("_id")
+      .lean();
+
+    if (conflictingSlug) {
+      throw new Error("Restaurant slug is already taken");
+    }
+
+    restaurant.set({
+      name: payload.name,
+      slug: payload.slug,
+      logo: payload.logo,
+      coverImage: payload.coverImage,
+      phone: payload.phone,
+      whatsapp: payload.whatsapp,
+      location: payload.location,
+      description: payload.description,
+      openingHours: payload.openingHours,
+      deliveryFee: payload.deliveryFee,
+      minimumOrderAmount: payload.minimumOrderAmount,
+      email: payload.email,
+      cuisineTypes: payload.cuisineTypes,
+      acceptsDelivery: payload.acceptsDelivery,
+      acceptsPickup: payload.acceptsPickup,
+      averagePrepTimeMinutes: payload.averagePrepTimeMinutes,
+    });
+
+    await restaurant.save();
+
+    revalidatePath("/restaurant-admin/settings");
+    revalidatePath("/restaurant-admin/overview");
+    revalidatePath("/restaurant-admin/menu-items");
+    revalidatePath("/restaurant/register");
+
+    return {
+      success: true,
+      message: "Restaurant settings updated successfully",
+      data: JSON.parse(JSON.stringify(restaurant)),
     };
   } catch (error) {
     return { success: false, message: formatError(error) };

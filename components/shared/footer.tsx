@@ -60,6 +60,7 @@ export default function Footer() {
         title: "Shop",
         links: [
           { label: "Menu Items", href: "/search" },
+          { label: "Restaurants", href: "/restaurants" },
           { label: "Categories", href: "/categories" },
           { label: "Today's deals", href: "/search?tag=todays-deal" },
           { label: "Best selling items", href: "/search?tag=best-seller" },

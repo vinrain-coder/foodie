@@ -400,6 +400,7 @@ Please note that certain items, such as socks and insoles, are not eligible for 
         { name: "Casual Sneakers", href: "/categories/casual-sneakers" },
       ],
     },
+    { name: "Restaurants", href: "/restaurants", subMenus: [] },
     { name: "Blog", href: "/blog" },
     { name: "Customer Service", href: "/page/customer-service" },
   ],
@@ -499,6 +500,7 @@ Please note that certain items, such as socks and insoles, are not eligible for 
             { name: "Casual Sneakers", href: "/categories/casual-sneakers" },
           ],
         },
+        { name: "Restaurants", href: "/restaurants", subMenus: [] },
         { name: "Blog", href: "/blog", subMenus: [] },
         {
           name: "Customer Service",

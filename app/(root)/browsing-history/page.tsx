@@ -50,7 +50,7 @@ export default function BrowsingHistoryPage() {
         });
 
         const res = await fetch(
-          `/api/menuItems/browsing-history?${query.toString()}`,
+          `/api/products/browsing-history?${query.toString()}`,
         );
 
         if (!res.ok) throw new Error("Request failed");
