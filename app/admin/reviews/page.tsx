@@ -26,6 +26,7 @@ import { Input } from "@/components/ui/input";
 import Form from "next/form";
 import NextLink from "next/link";
 import ReplyReviewDialog from "./reply-review-dialog";
+import { canAccessAdminDashboard } from "@/lib/dashboard-access";
 
 export const metadata: Metadata = {
   title: "Admin Reviews",
@@ -50,7 +51,7 @@ export default async function ReviewsPage(props: {
   const { query = "", rating = "all", from, to } = searchParams;
 
   const session = await getServerSession();
-  if (session?.user.role !== "ADMIN") {
+  if (!canAccessAdminDashboard(session?.user.role)) {
     throw new Error("Admin permission required");
   }
 

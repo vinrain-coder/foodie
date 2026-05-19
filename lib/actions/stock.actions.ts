@@ -22,6 +22,7 @@ import { flattenZodErrors, escapeRegExp, normalizeDateRange } from "@/lib/utils"
 import { getServerSession } from "@/lib/get-session";
 import { StockSubscriptionSchema } from "../validator";
 import { ActionState } from "@/types/action-state";
+import { canAccessAdminDashboard } from "@/lib/dashboard-access";
 
 /**
  * Subscribe to stock notifications for a menuItem.
@@ -214,7 +215,7 @@ export const notifySubscribers = async ({
 }) => {
   try {
     const session = await getServerSession();
-    if (session?.user.role !== "ADMIN") {
+    if (!canAccessAdminDashboard(session?.user.role)) {
       return { success: false, message: "Admin permission required" };
     }
 
@@ -311,7 +312,7 @@ export const notifySubscribers = async ({
 export const deleteStockSubscription = async (id: string) => {
   try {
     const session = await getServerSession();
-    if (session?.user.role !== "ADMIN") {
+    if (!canAccessAdminDashboard(session?.user.role)) {
       return { success: false, message: "Admin permission required" };
     }
 

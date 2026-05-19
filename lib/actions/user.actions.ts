@@ -22,6 +22,7 @@ import {
 } from "../email/transactional";
 import { ensureWishlistIsArray } from "./wishlist.actions";
 import { headers } from "next/headers";
+import { USER_ROLES, type UserRole } from "@/lib/constants";
 
 // CREATE
 export async function registerUser(
@@ -75,7 +76,7 @@ export async function registerUser(
 }
 
 export async function createUserByAdmin(
-  userData: IUserSignUp & { role?: "ADMIN" | "USER" },
+  userData: IUserSignUp & { role?: UserRole },
 ): Promise<ActionState> {
   try {
     const session = await getServerSession();
@@ -97,6 +98,9 @@ export async function createUserByAdmin(
       };
     }
     const user = validated.data;
+    if (userData.role && !USER_ROLES.includes(userData.role)) {
+      throw new Error("Invalid role selected");
+    }
 
     await connectToDatabase();
     const existingUser = await User.findOne({ email: user.email });
@@ -371,11 +375,18 @@ export async function getAllUsers({
 export async function getUserStats() {
   await connectToDatabase();
 
-  const [totalUsers, adminCount, customerCount, premiumCount, recentUsers] =
-    await Promise.all([
+  const [
+    totalUsers,
+    adminCount,
+    customerCount,
+    restaurantCount,
+    premiumCount,
+    recentUsers,
+  ] = await Promise.all([
       User.countDocuments(),
       User.countDocuments({ role: { $in: ["ADMIN", "admin"] } }),
       User.countDocuments({ role: { $in: ["USER", "user"] } }),
+      User.countDocuments({ role: { $in: ["RESTAURANT", "restaurant"] } }),
       User.countDocuments({ subscription: "PREMIUM" }),
       User.countDocuments({
         createdAt: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
@@ -386,6 +397,7 @@ export async function getUserStats() {
     totalUsers,
     adminCount,
     customerCount,
+    restaurantCount,
     premiumCount,
     recentUsers,
   };

@@ -75,7 +75,7 @@ export default async function AdminMenuItemsPage(props: {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <MenuItemsDateRangePicker />
           <Button asChild>
-            <Link href="/admin/menu-item/create">
+            <Link href="/admin/menu-items/create">
               <Plus className="mr-2 h-4 w-4" />
               Create Menu Item
             </Link>

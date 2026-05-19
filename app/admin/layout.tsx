@@ -7,6 +7,7 @@ import { redirect } from "next/navigation";
 import { SiteHeader } from "./site-header";
 import type { Metadata } from "next";
 import { PRIVATE_ROBOTS } from "@/lib/seo";
+import { isAdminRole, isRestaurantRole } from "@/lib/dashboard-access";
 
 export const metadata: Metadata = {
   robots: PRIVATE_ROBOTS,
@@ -24,7 +25,11 @@ export default async function AdminLayout({
     redirect(toSignInPath("/admin"));
   }
 
-  if (session.user.role !== "ADMIN") {
+  if (isRestaurantRole(session.user.role)) {
+    redirect("/restaurant-admin/overview");
+  }
+
+  if (!isAdminRole(session.user.role)) {
     redirect("/forbidden");
   }
 
@@ -37,7 +42,12 @@ export default async function AdminLayout({
         } as React.CSSProperties
       }
     >
-      <AppSidebar variant="inset" siteLogo={site.logo} siteName={site.name} />
+      <AppSidebar
+        variant="inset"
+        siteLogo={site.logo}
+        siteName={site.name}
+        userRole={session.user.role}
+      />
       <SidebarInset>
         <SiteHeader />
         <div className="flex flex-1 flex-col">

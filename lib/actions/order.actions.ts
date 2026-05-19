@@ -54,6 +54,8 @@ import { cookies } from "next/headers";
 import { calculateShippingPrice } from "../delivery";
 import DeliveryLocation from "../db/models/delivery-location.model";
 import Installment from "../db/models/installment.model";
+import { canAccessAdminDashboard } from "@/lib/dashboard-access";
+import { getStaffScope } from "@/lib/staff-scope";
 
 export type SerializedOrder = Omit<IOrder, "_id"> & { _id: string };
 
@@ -160,6 +162,11 @@ const serializeOrder = (order: IOrder | null): SerializedOrder | null => {
 
 const buildTrackingLink = (trackingNumber: string) =>
   `/track/${encodeURIComponent(trackingNumber)}`;
+
+const buildRestaurantOrderFilter = (scope: Awaited<ReturnType<typeof getStaffScope>>) =>
+  scope.role === "RESTAURANT"
+    ? { restaurant: new mongoose.Types.ObjectId(scope.restaurantId) }
+    : {};
 
 /**
  * Internal helper to handle incrementing or decrementing usage for coupons/affiliates.
@@ -936,6 +943,61 @@ export const createOrderFromCart = async (
     ...pricing,
   };
 
+  const uniqueMenuItemIds = [
+    ...new Set(
+      (cart.items || [])
+        .map((item) => item.menuItem?.toString())
+        .filter((id): id is string => Boolean(id && mongoose.Types.ObjectId.isValid(id))),
+    ),
+  ];
+
+  const menuItemsForOrder = await MenuItem.find({
+    _id: { $in: uniqueMenuItemIds },
+  })
+    .select("_id name restaurant")
+    .lean();
+
+  if (menuItemsForOrder.length !== uniqueMenuItemIds.length) {
+    throw new Error("Some menu items are no longer available.");
+  }
+
+  const menuItemById = new Map(
+    menuItemsForOrder.map((menuItem) => [menuItem._id.toString(), menuItem]),
+  );
+
+  const orderRestaurantIdSet = new Set<string>();
+  let hasUnassignedMenuItems = false;
+
+  for (const item of cart.items) {
+    const dbMenuItem = menuItemById.get(item.menuItem.toString());
+    if (!dbMenuItem) {
+      throw new Error(`Menu item not found: ${item.name}`);
+    }
+
+    if (dbMenuItem.restaurant) {
+      orderRestaurantIdSet.add(dbMenuItem.restaurant.toString());
+    } else {
+      hasUnassignedMenuItems = true;
+    }
+  }
+
+  if (orderRestaurantIdSet.size > 1) {
+    throw new Error(
+      "You can only place one order per restaurant. Please checkout items from one restaurant at a time.",
+    );
+  }
+
+  if (orderRestaurantIdSet.size === 1 && hasUnassignedMenuItems) {
+    throw new Error(
+      "Your cart mixes restaurant items with non-restaurant items. Please checkout them separately.",
+    );
+  }
+
+  const orderRestaurantId =
+    orderRestaurantIdSet.size === 1
+      ? Array.from(orderRestaurantIdSet)[0]
+      : undefined;
+
   if (cart.paymentMethod === "Coins") {
     if (!userId) throw new Error("Authentication required for Coin payments");
     const user = await User.findById(userId);
@@ -1000,6 +1062,7 @@ export const createOrderFromCart = async (
   const initialTrackingNumber = generateTrackingNumber();
   const validated = OrderInputSchema.safeParse({
     user: userId,
+    restaurant: orderRestaurantId,
     isGuest: !userId,
     userEmail: normalizedUserEmail,
     userName: userName || clientSideCart.shippingAddress?.fullName,
@@ -1387,15 +1450,17 @@ export async function updateOrderStatus({
 }) {
   try {
     await connectToDatabase();
-    const session = await getServerSession();
-    if (session?.user?.role !== "ADMIN") {
-      throw new Error("Admin permission required");
-    }
+    const scope = await getStaffScope();
 
     const normalizedStatus = normalizeOrderStatus(status);
     if (!normalizedStatus) throw new Error("Invalid order status value.");
 
-    const order = await Order.findById(orderId).populate<{
+    const orderFilter = {
+      _id: orderId,
+      ...buildRestaurantOrderFilter(scope),
+    };
+
+    const order = await Order.findOne(orderFilter).populate<{
       user: { email: string; name: string };
     }>("user", "name email");
 
@@ -1417,7 +1482,7 @@ export async function updateOrderStatus({
       message,
       location,
       source: "admin",
-      actor: session.user.name,
+      actor: scope.userName,
     });
 
     await notify();
@@ -1447,12 +1512,12 @@ export async function updateOrderStatus({
 export async function initiateExchange(orderId: string) {
   try {
     await connectToDatabase();
-    const session = await getServerSession();
-    if (session?.user?.role !== "ADMIN") {
-      throw new Error("Admin permission required");
-    }
+    const scope = await getStaffScope();
 
-    const order = await Order.findById(orderId).populate<{
+    const order = await Order.findOne({
+      _id: orderId,
+      ...buildRestaurantOrderFilter(scope),
+    }).populate<{
       user: { email: string; name: string };
     }>("user", "name email");
 
@@ -1530,11 +1595,22 @@ export async function cancelOrder(orderId: string, accessToken?: string) {
       const isUserOwner =
         Boolean(session?.user?.id) &&
         order.user?._id?.toString() === session?.user?.id;
-      const isAdmin = session?.user?.role === "ADMIN";
+
+      let isStaffOrderManager = false;
+      if (canAccessAdminDashboard(session?.user?.role)) {
+        const scope = await getStaffScope();
+        if (scope.role === "ADMIN") {
+          isStaffOrderManager = true;
+        } else if (scope.role === "RESTAURANT") {
+          isStaffOrderManager =
+            order.restaurant?.toString() === scope.restaurantId;
+        }
+      }
+
       const isGuestOwner =
         !session && order.isGuest && order.accessToken === guestAccessToken;
 
-      if (!isUserOwner && !isAdmin && !isGuestOwner) {
+      if (!isUserOwner && !isStaffOrderManager && !isGuestOwner) {
         throw new Error("Unauthorized");
       }
 
@@ -1545,8 +1621,8 @@ export async function cancelOrder(orderId: string, accessToken?: string) {
       const { notify } = await runStatusTransition({
         order,
         nextStatus: "cancelled",
-        message: `Order cancelled by ${isAdmin ? "admin" : "customer"}.`,
-        source: isAdmin ? "admin" : "customer",
+        message: `Order cancelled by ${isStaffOrderManager ? "staff" : "customer"}.`,
+        source: isStaffOrderManager ? "admin" : "customer",
         actor: session?.user?.name || "Guest customer",
         session: dbSession,
       });
@@ -1654,12 +1730,12 @@ export async function getOrderByTrackingNumber(trackingNumber: string) {
 export async function deleteOrder(id: string) {
   try {
     await connectToDatabase();
-    const session = await getServerSession();
-    if (session?.user?.role !== "ADMIN") {
-      throw new Error("Admin permission required");
-    }
+    const scope = await getStaffScope();
 
-    const res = await Order.findByIdAndDelete(id);
+    const res = await Order.findOneAndDelete({
+      _id: id,
+      ...buildRestaurantOrderFilter(scope),
+    });
     if (!res) throw new Error("Order not found");
     revalidatePath("/admin/orders");
     return {
@@ -1688,8 +1764,9 @@ export async function getAllOrders({
   to?: string;
   query?: string;
 }) {
-  "use cache";
+  "use cache: private";
   cacheLife("minutes");
+  const scope = await getStaffScope();
   const {
     common: { pageSize },
   } = await getSetting();
@@ -1698,6 +1775,7 @@ export async function getAllOrders({
   const skipAmount = (Number(page) - 1) * limit;
 
   const filter: any = {};
+  Object.assign(filter, buildRestaurantOrderFilter(scope));
   if (status && status !== "all") {
     filter.status = status;
   }
@@ -1750,11 +1828,12 @@ export async function getOrderStatusStats(
   },
   searchQuery?: string,
 ) {
-  "use cache";
+  "use cache: private";
   cacheLife("minutes");
+  const scope = await getStaffScope();
   await connectToDatabase();
 
-  const filter: any = {};
+  const filter: any = { ...buildRestaurantOrderFilter(scope) };
   if (dateRange?.from || dateRange?.to) {
     filter.createdAt = {};
     if (dateRange.from) filter.createdAt.$gte = new Date(dateRange.from);
@@ -1855,7 +1934,12 @@ export async function getOrderById(
 
   const query: any = { _id: orderId };
 
-  if (session?.user?.role !== "ADMIN") {
+  if (canAccessAdminDashboard(session?.user?.role)) {
+    const scope = await getStaffScope();
+    if (scope.role === "RESTAURANT") {
+      query.restaurant = new mongoose.Types.ObjectId(scope.restaurantId);
+    }
+  } else {
     if (session?.user?.id) {
       query.$or = [
         { user: session.user.id },

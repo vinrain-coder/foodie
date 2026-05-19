@@ -87,7 +87,8 @@ type MediaUploaderProps<TFieldValues extends FieldValues> = {
     | "tags"
     | "blogs"
     | "pages"
-    | "carousels";
+    | "carousels"
+    | "restaurants";
   multiple?: boolean;
   maxFiles?: number;
 };

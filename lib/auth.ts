@@ -145,7 +145,7 @@ export const auth = betterAuth({
         type: "string",
         input: false,
         defaultValue: "USER",
-        options: ["USER", "ADMIN"],
+        options: ["USER", "ADMIN", "RESTAURANT", "RIDER"],
       },
       subscription: {
         type: "string",

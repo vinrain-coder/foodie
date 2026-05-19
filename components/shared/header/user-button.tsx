@@ -16,6 +16,7 @@ import { ChevronDownIcon } from "lucide-react";
 import Link from "next/link";
 import { SignOutButton } from "../sign-out-button";
 import { authClient } from "@/lib/auth-client";
+import { canAccessAdminDashboard, isRestaurantRole } from "@/lib/dashboard-access";
 
 export default function UserButton() {
   const [mounted, setMounted] = useState(false);
@@ -40,6 +41,10 @@ export default function UserButton() {
   }
 
   const isAffiliate = session?.user?.isAffiliate;
+  const canAccessRestaurantDashboard = canAccessAdminDashboard(
+    session?.user?.role,
+  );
+  const restaurantUser = isRestaurantRole(session?.user?.role);
 
   return (
     <div className="flex items-center">
@@ -110,18 +115,57 @@ export default function UserButton() {
                 </DropdownMenuItem>
               </Link>
 
-              {isAffiliate && (
-                <Link href="/affiliate/dashboard" className="w-full">
+              {canAccessRestaurantDashboard ? (
+                <>
+                  <Link
+                    href={
+                      restaurantUser
+                        ? "/restaurant-admin/overview"
+                        : "/admin/overview"
+                    }
+                    className="w-full cursor-pointer"
+                  >
+                    <DropdownMenuItem className="cursor-pointer rounded-md">
+                      {restaurantUser ? "Restaurant Dashboard" : "Admin Dashboard"}
+                    </DropdownMenuItem>
+                  </Link>
+                  <Link
+                    href={
+                      restaurantUser
+                        ? "/restaurant-admin/menu-items"
+                        : "/admin/menu-items"
+                    }
+                    className="w-full cursor-pointer"
+                  >
+                    <DropdownMenuItem className="cursor-pointer rounded-md">
+                      Manage Menu Items
+                    </DropdownMenuItem>
+                  </Link>
+                  <Link
+                    href={
+                      restaurantUser
+                        ? "/restaurant-admin/orders"
+                        : "/admin/orders"
+                    }
+                    className="w-full cursor-pointer"
+                  >
+                    <DropdownMenuItem className="cursor-pointer rounded-md">
+                      Manage Orders
+                    </DropdownMenuItem>
+                  </Link>
+                </>
+              ) : (
+                <Link href="/restaurant/register" className="w-full cursor-pointer">
                   <DropdownMenuItem className="cursor-pointer rounded-md">
-                    Affiliate Dashboard
+                    Restaurant Application
                   </DropdownMenuItem>
                 </Link>
               )}
 
-              {session.user.role === "ADMIN" && (
-                <Link href="/admin/overview" className="w-full cursor-pointer">
+              {isAffiliate && (
+                <Link href="/affiliate/dashboard" className="w-full">
                   <DropdownMenuItem className="cursor-pointer rounded-md">
-                    Admin
+                    Affiliate Dashboard
                   </DropdownMenuItem>
                 </Link>
               )}

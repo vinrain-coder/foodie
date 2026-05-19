@@ -19,7 +19,7 @@ export default function CreateUserPage() {
       <div className="rounded-lg border bg-card p-5">
         <h1 className="text-2xl font-semibold">Create New User</h1>
         <p className="mb-5 text-sm text-muted-foreground">
-          Add a new account and optionally assign admin access.
+          Add a new account and assign the appropriate platform role.
         </p>
         <UserCreateForm />
       </div>

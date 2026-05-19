@@ -15,6 +15,7 @@ import { getSetting } from "./setting.actions";
 import { getServerSession } from "../get-session";
 import { cacheLife } from "next/cache";
 import { sendAdminEventNotification } from "@/lib/email/transactional";
+import { canAccessAdminDashboard } from "@/lib/dashboard-access";
 
 function normalizeReviewImages(input: { image?: string; images?: string[] }) {
   const fromImages = (input.images || []).filter(Boolean).slice(0, 2);
@@ -345,7 +346,7 @@ export async function replyToReview({
 }) {
   try {
     const session = await getServerSession();
-    if (!session || session.user.role !== "ADMIN") {
+    if (!session || !canAccessAdminDashboard(session.user.role)) {
       throw new Error("Admin permission required");
     }
 
@@ -400,7 +401,7 @@ export async function deleteReview(id: string) {
     const review = await Review.findById(id).select("menuItem user").lean();
     if (!review) throw new Error("Review not found");
 
-    const isAdmin = session.user.role === "ADMIN";
+    const isAdmin = canAccessAdminDashboard(session.user.role);
     const isOwner = review.user && review.user.toString() === session.user.id;
 
     if (!isAdmin && !isOwner) {

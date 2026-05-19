@@ -17,12 +17,14 @@ import { cn } from "@/lib/utils";
 
 export function NavMain({
   items,
+  createUrl = "/admin/menu-items/create",
 }: {
   items: {
     title: string;
     url: string;
     icon?: Icon;
   }[];
+  createUrl?: string;
 }) {
   const { isMobile, toggleSidebar } = useSidebar();
   const pathname = usePathname();
@@ -41,7 +43,7 @@ export function NavMain({
                 onClick={() => {
                   if (isMobile) toggleSidebar();
                 }}
-                href="/admin/menu-items/create"
+                href={createUrl}
                 className="flex items-center gap-2"
               >
                 <div className="flex items-center gap-2">

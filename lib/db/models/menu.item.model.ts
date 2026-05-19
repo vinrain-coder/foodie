@@ -3,6 +3,7 @@ import { IMenuItemInput } from "@/types";
 
 export interface IMenuItem extends Document, IMenuItemInput {
   _id: Types.ObjectId;
+  restaurant?: Types.ObjectId;
   numReviews: number;
   avgRating: number;
   ratingDistribution: { rating: number; count: number }[];
@@ -25,6 +26,12 @@ const menuItemSchema = new Schema<IMenuItem>(
     category: {
       type: String,
       required: true,
+    },
+    restaurant: {
+      type: Schema.Types.ObjectId,
+      ref: "Restaurant",
+      required: false,
+      index: true,
     },
 
     images: [String],
@@ -103,6 +110,8 @@ const menuItemSchema = new Schema<IMenuItem>(
     timestamps: true,
   },
 );
+
+menuItemSchema.index({ restaurant: 1, updatedAt: -1 });
 
 const MenuItem =
   (models.MenuItem as Model<IMenuItem>) ||

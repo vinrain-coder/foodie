@@ -28,10 +28,15 @@ import ThemeSwitcher from "./theme-switcher";
 import { authClient } from "@/lib/auth-client";
 import Link from "next/link";
 import { SignOutButton } from "../sign-out-button";
+import { canAccessAdminDashboard, isRestaurantRole } from "@/lib/dashboard-access";
 
 const Menu = ({ forAdmin = false }: { forAdmin?: boolean }) => {
   const { data: session } = authClient.useSession();
   const [open, setOpen] = useState(false);
+  const canAccessRestaurantDashboard = canAccessAdminDashboard(
+    session?.user?.role,
+  );
+  const restaurantUser = isRestaurantRole(session?.user?.role);
 
   return (
     <div className="flex justify-end">
@@ -140,6 +145,59 @@ const Menu = ({ forAdmin = false }: { forAdmin?: boolean }) => {
                             <span>{item.label}</span>
                           </Link>
                         ))}
+                        {canAccessRestaurantDashboard ? (
+                          <>
+                            <Link
+                              href={
+                                restaurantUser
+                                  ? "/restaurant-admin/overview"
+                                  : "/admin/overview"
+                              }
+                              prefetch
+                              onClick={() => setOpen(false)}
+                              className="item-button"
+                            >
+                              <span>
+                                {restaurantUser
+                                  ? "Restaurant Dashboard"
+                                  : "Admin Dashboard"}
+                              </span>
+                            </Link>
+                            <Link
+                              href={
+                                restaurantUser
+                                  ? "/restaurant-admin/menu-items"
+                                  : "/admin/menu-items"
+                              }
+                              prefetch
+                              onClick={() => setOpen(false)}
+                              className="item-button"
+                            >
+                              <span>Manage Menu Items</span>
+                            </Link>
+                            <Link
+                              href={
+                                restaurantUser
+                                  ? "/restaurant-admin/orders"
+                                  : "/admin/orders"
+                              }
+                              prefetch
+                              onClick={() => setOpen(false)}
+                              className="item-button"
+                            >
+                              <span>Manage Orders</span>
+                            </Link>
+                          </>
+                        ) : (
+                          <Link
+                            href="/restaurant/register"
+                            prefetch
+                            onClick={() => setOpen(false)}
+                            className="item-button"
+                          >
+                            <span>Restaurant Application</span>
+                          </Link>
+                        )}
                         <div className="pt-3">
                           <SignOutButton />
                         </div>

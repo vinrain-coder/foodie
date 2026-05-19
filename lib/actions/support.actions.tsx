@@ -17,6 +17,7 @@ import {
   sendAdminEventNotification,
   sendSupportTicketReplyEmail,
 } from "@/lib/email/transactional";
+import { canAccessAdminDashboard } from "@/lib/dashboard-access";
 
 type SupportTicketDto = {
   _id: string;
@@ -106,7 +107,7 @@ export async function getSupportTicketsAdmin({
 } = {}) {
   try {
     const session = await getServerSession();
-    if (!session || session.user.role !== "ADMIN") {
+    if (!session || !canAccessAdminDashboard(session.user.role)) {
       throw new Error("Admin permission required");
     }
 
@@ -162,7 +163,7 @@ export async function getSupportTicketsAdmin({
 
 export async function getSupportStats() {
   const session = await getServerSession();
-  if (session?.user.role !== "ADMIN") {
+  if (!canAccessAdminDashboard(session?.user.role)) {
     throw new Error("Admin permission required");
   }
 
@@ -183,7 +184,7 @@ export async function getSupportStats() {
 export async function replySupportTicket(input: { id: string; reply: string }) {
   try {
     const session = await getServerSession();
-    if (!session || session.user.role !== "ADMIN") {
+    if (!session || !canAccessAdminDashboard(session.user.role)) {
       throw new Error("Admin permission required");
     }
 

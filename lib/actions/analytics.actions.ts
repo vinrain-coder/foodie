@@ -5,6 +5,7 @@ import { DateRange } from "react-day-picker";
 import { connectToDatabase } from "@/lib/db";
 import WebAnalyticsEvent from "@/lib/db/models/web-analytics-event.model";
 import { getServerSession } from "@/lib/get-session";
+import { canAccessAdminDashboard } from "@/lib/dashboard-access";
 
 function buildRangeFilter(range?: DateRange) {
   const now = new Date();
@@ -23,7 +24,7 @@ function buildRangeFilter(range?: DateRange) {
 export async function getWebAnalyticsSummary(range?: DateRange) {
   await connectToDatabase();
   const session = await getServerSession();
-  if (session?.user?.role !== "ADMIN") {
+  if (!canAccessAdminDashboard(session?.user?.role)) {
     throw new Error("Admin permission required");
   }
 

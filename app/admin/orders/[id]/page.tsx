@@ -4,6 +4,7 @@ import { getOrderById } from "@/lib/actions/order.actions";
 import OrderDetailsForm from "@/components/shared/order/order-details-form";
 import Link from "next/link";
 import { getServerSession } from "@/lib/get-session";
+import { canAccessAdminDashboard } from "@/lib/dashboard-access";
 
 export const metadata = {
   title: "Admin Order Details",
@@ -23,7 +24,7 @@ const AdminOrderDetailsPage = async (props: {
 
   const session = await getServerSession();
 
-  if (session?.user?.role !== "ADMIN") {
+  if (!canAccessAdminDashboard(session?.user?.role)) {
     throw new Error("Admin permission required");
   }
 
@@ -35,7 +36,7 @@ const AdminOrderDetailsPage = async (props: {
       </div>
       <OrderDetailsForm
         order={order}
-        isAdmin={session?.user?.role === "ADMIN" || false}
+        isAdmin={canAccessAdminDashboard(session?.user?.role)}
       />
     </main>
   );

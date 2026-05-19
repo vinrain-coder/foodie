@@ -10,6 +10,7 @@ import StockSubFilters from "./stock-sub-filters";
 import StockSubList from "./stock-sub-list";
 import { StockSubDateRangePicker } from "./date-range-picker";
 import NotifyButton from "./notify-button";
+import { canAccessAdminDashboard } from "@/lib/dashboard-access";
 
 export const metadata: Metadata = {
   title: "Admin Stock Subscriptions",
@@ -28,7 +29,7 @@ export default async function StockSubscriptionsPage(props: {
   const { page = "1", filter = "all", query = "", from, to } = searchParams;
 
   const session = await getServerSession();
-  if (session?.user.role !== "ADMIN")
+  if (!canAccessAdminDashboard(session?.user.role))
     throw new Error("Admin permission required");
 
   const [data, stats] = await Promise.all([

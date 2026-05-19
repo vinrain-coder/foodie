@@ -13,6 +13,7 @@ import mongoose from "mongoose";
 import { UTApi } from "uploadthing/server";
 import { notFound } from "next/navigation";
 import { MenuItemInputSchema, MenuItemUpdateSchema } from "../validator";
+import { getStaffScope } from "@/lib/staff-scope";
 
 const utapi = new UTApi(); // Initialize UTApi instance
 
@@ -21,6 +22,7 @@ export async function createMenuItem(
   data: IMenuItemInput,
 ): Promise<ActionState> {
   try {
+    const scope = await getStaffScope();
     const validated = MenuItemInputSchema.safeParse(data);
     if (!validated.success) {
       return {
@@ -30,8 +32,12 @@ export async function createMenuItem(
       };
     }
     const menuItem = validated.data;
-    await connectToDatabase();
-    await MenuItem.create(menuItem);
+    const payload =
+      scope.role === "RESTAURANT"
+        ? { ...menuItem, restaurant: scope.restaurantId }
+        : menuItem;
+
+    await MenuItem.create(payload);
     revalidatePath("/admin/menu-items");
     updateTag("menuItems");
     return {
@@ -48,6 +54,7 @@ export async function updateMenuItem(
   data: z.infer<typeof MenuItemUpdateSchema>,
 ): Promise<ActionState> {
   try {
+    const scope = await getStaffScope();
     const validated = MenuItemUpdateSchema.safeParse(data);
     if (!validated.success) {
       return {
@@ -57,7 +64,6 @@ export async function updateMenuItem(
       };
     }
     const menuItem = validated.data;
-    await connectToDatabase();
 
     if (
       typeof menuItem.countInStock === "number" &&
@@ -66,7 +72,19 @@ export async function updateMenuItem(
       throw new Error("Count in stock cannot be negative");
     }
 
-    await MenuItem.findByIdAndUpdate(menuItem._id, menuItem);
+    const filter =
+      scope.role === "RESTAURANT"
+        ? { _id: menuItem._id, restaurant: scope.restaurantId }
+        : { _id: menuItem._id };
+
+    const updated = await MenuItem.findOneAndUpdate(filter, menuItem, {
+      new: true,
+    });
+
+    if (!updated) {
+      throw new Error("Menu item not found or unauthorized");
+    }
+
     revalidatePath("/admin/menu-items");
     updateTag("menuItems");
     return {
@@ -81,9 +99,14 @@ export async function updateMenuItem(
 // DELETE
 export async function deleteMenuItem(id: string) {
   try {
-    await connectToDatabase();
+    const scope = await getStaffScope();
 
-    const menuItem = await MenuItem.findById(id);
+    const filter =
+      scope.role === "RESTAURANT"
+        ? { _id: id, restaurant: scope.restaurantId }
+        : { _id: id };
+
+    const menuItem = await MenuItem.findOne(filter);
     if (!menuItem) throw new Error("Menu item not found");
 
     // Delete images from UploadThing
@@ -99,7 +122,7 @@ export async function deleteMenuItem(id: string) {
     }
 
     // Delete menuItem from the database
-    await MenuItem.findByIdAndDelete(id);
+    await MenuItem.findOneAndDelete(filter);
 
     revalidatePath("/admin/menu-items");
     updateTag("menuItems");
@@ -115,11 +138,13 @@ export async function deleteMenuItem(id: string) {
 
 // GET ONE PRODUCT BY ID
 export async function getMenuItemById(menuItemId: string) {
-  "use cache";
-  cacheLife("hours");
-  cacheTag("menuItems");
-  await connectToDatabase();
-  const menuItem = await MenuItem.findById(menuItemId).lean();
+  const scope = await getStaffScope();
+  const filter =
+    scope.role === "RESTAURANT"
+      ? { _id: menuItemId, restaurant: scope.restaurantId }
+      : { _id: menuItemId };
+
+  const menuItem = await MenuItem.findOne(filter).lean();
   if (!menuItem) return null;
   return {
     ...menuItem,
@@ -170,10 +195,7 @@ export async function getAllMenuItemsForAdmin({
   from?: string;
   to?: string;
 }) {
-  "use cache";
-  cacheLife("hours");
-  cacheTag("menuItems");
-  await connectToDatabase();
+  const scope = await getStaffScope();
 
   const {
     common: { pageSize },
@@ -231,6 +253,9 @@ export async function getAllMenuItemsForAdmin({
       : {};
 
   const filters = {
+    ...(scope.role === "RESTAURANT"
+      ? { restaurant: new mongoose.Types.ObjectId(scope.restaurantId) }
+      : {}),
     ...queryFilter,
     ...categoryFilter,
     ...tagFilter,
@@ -274,10 +299,7 @@ export async function getMenuItemAdminStats(params: {
   from?: string;
   to?: string;
 }) {
-  "use cache";
-  cacheLife("hours");
-  cacheTag("menuItems");
-  await connectToDatabase();
+  const scope = await getStaffScope();
 
   const LOW_STOCK_THRESHOLD = 10;
 
@@ -332,6 +354,9 @@ export async function getMenuItemAdminStats(params: {
       : {};
 
   const baseFilters = {
+    ...(scope.role === "RESTAURANT"
+      ? { restaurant: new mongoose.Types.ObjectId(scope.restaurantId) }
+      : {}),
     ...queryFilter,
     ...categoryFilter,
     ...tagFilter,

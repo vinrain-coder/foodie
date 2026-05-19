@@ -29,6 +29,7 @@ import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import Form from "next/form";
 import Price from "@/components/shared/menuItem/price";
+import { canAccessAdminDashboard } from "@/lib/dashboard-access";
 
 export const metadata: Metadata = {
   title: "Admin Orders",
@@ -47,7 +48,7 @@ export default async function OrdersPage(props: {
   const { page = "1", status = "all", from, to, query } = searchParams;
 
   const session = await getServerSession();
-  if (session?.user.role !== "ADMIN")
+  if (!canAccessAdminDashboard(session?.user.role))
     throw new Error("Admin permission required");
 
   const [orders, statsData] = await Promise.all([

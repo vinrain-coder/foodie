@@ -13,6 +13,13 @@ import SupportTicket from "../db/models/support-ticket.model";
 import Affiliate from "../db/models/affiliate.model";
 import AffiliatePayout from "../db/models/affiliate-payout.model";
 import WalletPayout from "../db/models/wallet-payout.model";
+import {
+  canAccessAdminDashboard,
+  isRestaurantRole,
+  RESTAURANT_BLOCKED_ADMIN_PATH_PREFIXES,
+} from "@/lib/dashboard-access";
+import { getStaffScope } from "@/lib/staff-scope";
+import mongoose from "mongoose";
 
 export type AdminNotificationItem = {
   id: string;
@@ -55,6 +62,7 @@ type ReviewNotificationSource = {
   } | null;
   menuItem?: {
     name?: string;
+    restaurant?: { toString(): string } | string | null;
   } | null;
 };
 
@@ -66,6 +74,7 @@ type StockSubscriptionNotificationSource = {
   isNotified?: boolean;
   menuItem?: {
     name?: string;
+    restaurant?: { toString(): string } | string | null;
   } | null;
 };
 
@@ -135,18 +144,31 @@ const getAffiliatePayoutUserName = (
   return affiliate.user?.name;
 };
 
-const ensureAdminSession = async () => {
+const ensureDashboardSession = async () => {
   const session = await getServerSession();
   if (!session) throw new Error("User is not authenticated");
-  if (session.user.role !== "ADMIN") throw new Error("Admin permission required");
+  if (!canAccessAdminDashboard(session.user.role)) {
+    throw new Error("Admin permission required");
+  }
   return session;
 };
+
+const canRestaurantSeeNotificationHref = (href: string) =>
+  !RESTAURANT_BLOCKED_ADMIN_PATH_PREFIXES.some((prefix) =>
+    href.startsWith(prefix),
+  );
 
 export async function getAdminNotificationFeed(
   limit = 12
 ): Promise<AdminNotificationFeed> {
   await connectToDatabase();
-  const session = await ensureAdminSession();
+  const session = await ensureDashboardSession();
+  const scope = await getStaffScope();
+
+  const restaurantFilter =
+    scope.role === "RESTAURANT"
+      ? { restaurant: new mongoose.Types.ObjectId(scope.restaurantId) }
+      : {};
 
   const state = await AdminNotificationState.findOne({
     adminUser: session.user.id,
@@ -157,19 +179,22 @@ export async function getAdminNotificationFeed(
   const readIdsSet = new Set(readIds);
 
   const [orders, reviews, subscriptions, customers, supportTickets, affiliates, payouts, walletPayouts] = (await Promise.all([
-    Order.find({ status: { $nin: ["cancelled", "return_requested"] } })
+    Order.find({
+      status: { $nin: ["cancelled", "return_requested"] },
+      ...restaurantFilter,
+    })
       .populate("user", "name email")
       .sort({ createdAt: -1 })
       .limit(limit)
       .lean(),
     Review.find()
       .populate("user", "name email")
-      .populate("menuItem", "name")
+      .populate("menuItem", "name restaurant")
       .sort({ createdAt: -1 })
       .limit(limit)
       .lean(),
     StockSubscription.find()
-      .populate("menuItem", "name")
+      .populate("menuItem", "name restaurant")
       .sort({ subscribedAt: -1, createdAt: -1 })
       .limit(limit)
       .lean(),
@@ -210,7 +235,7 @@ export async function getAdminNotificationFeed(
     WalletPayoutNotificationSource[],
   ];
 
-  const items: AdminNotificationItem[] = [
+  let items: AdminNotificationItem[] = [
     ...orders.map((order) => {
       const id = `order-${asId(order._id)}`;
       return {
@@ -317,6 +342,7 @@ export async function getAdminNotificationFeed(
       };
     }),
     ...(await Order.find({ status: "cancelled" })
+      .find(restaurantFilter)
       .populate("user", "name")
       .sort({ updatedAt: -1 })
       .limit(5)
@@ -334,6 +360,7 @@ export async function getAdminNotificationFeed(
       };
     }),
     ...(await Order.find({ status: "return_requested" })
+      .find(restaurantFilter)
       .populate("user", "name")
       .sort({ updatedAt: -1 })
       .limit(5)
@@ -356,6 +383,43 @@ export async function getAdminNotificationFeed(
     )
     .slice(0, limit);
 
+  if (isRestaurantRole(session.user.role)) {
+    items = items.filter((item) => canRestaurantSeeNotificationHref(item.href));
+
+    const restaurantId = scope.role === "RESTAURANT" ? scope.restaurantId : null;
+    if (restaurantId) {
+      const restaurantReviewIds = new Set(
+        reviews
+          .filter(
+            (review) =>
+              review.menuItem?.restaurant?.toString() === restaurantId,
+          )
+          .map((review) => `review-${asId(review._id)}`),
+      );
+      const restaurantStockSubIds = new Set(
+        subscriptions
+          .filter(
+            (subscription) =>
+              subscription.menuItem?.restaurant?.toString() === restaurantId,
+          )
+          .map((subscription) => `stock-subscription-${asId(subscription._id)}`),
+      );
+
+      items = items.filter((item) => {
+        if (item.type === "review") {
+          return restaurantReviewIds.has(item.id);
+        }
+        if (item.type === "stock-subscription") {
+          return restaurantStockSubIds.has(item.id);
+        }
+        if (item.type === "order") {
+          return item.href.startsWith("/admin/orders/");
+        }
+        return false;
+      });
+    }
+  }
+
   return {
     unreadCount: items.filter((item) => item.isUnread).length,
     lastSeenAt: lastSeenAt?.toISOString() ?? null,
@@ -366,7 +430,7 @@ export async function getAdminNotificationFeed(
 export async function markAdminNotificationsRead() {
   try {
     await connectToDatabase();
-    const session = await ensureAdminSession();
+    const session = await ensureDashboardSession();
 
     await AdminNotificationState.findOneAndUpdate(
       { adminUser: session.user.id },
@@ -390,7 +454,7 @@ export async function markAdminNotificationsRead() {
 export async function markAdminNotificationAsRead(id: string) {
   try {
     await connectToDatabase();
-    const session = await ensureAdminSession();
+    const session = await ensureDashboardSession();
 
     const MAX_READ_IDS = 1000;
 

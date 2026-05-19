@@ -33,6 +33,7 @@ export interface IOrderShipment {
 export interface IOrder extends Document {
   _id: Types.ObjectId;
   user?: Types.ObjectId | { _id?: string; email?: string; name?: string };
+  restaurant?: Types.ObjectId | string;
   isGuest: boolean;
   userEmail?: string;
   userName?: string;
@@ -114,6 +115,12 @@ const orderSchema = new Schema<IOrder>(
     user: {
       type: Schema.Types.ObjectId,
       ref: "User",
+      required: false,
+      index: true,
+    },
+    restaurant: {
+      type: Schema.Types.ObjectId,
+      ref: "Restaurant",
       required: false,
       index: true,
     },
@@ -303,6 +310,7 @@ const orderSchema = new Schema<IOrder>(
 orderSchema.index({ trackingNumber: 1 }, { unique: true });
 orderSchema.index({ status: 1, updatedAt: -1 });
 orderSchema.index({ user: 1, createdAt: -1 });
+orderSchema.index({ restaurant: 1, createdAt: -1 });
 orderSchema.index({ user: 1, refundedToWallet: 1 });
 orderSchema.index({ user: 1, walletAmountRedeemed: 1 });
 orderSchema.index({ "items.menuItem": 1 });

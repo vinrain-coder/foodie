@@ -127,7 +127,9 @@ export default async function AdminUserPage(props: {
                       variant={
                         user.role === "ADMIN"
                           ? "destructive"
-                          : "secondary"
+                          : user.role === "RESTAURANT"
+                            ? "default"
+                            : "secondary"
                       }
                     >
                       {user.role}

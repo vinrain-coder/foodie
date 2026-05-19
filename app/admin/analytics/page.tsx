@@ -2,6 +2,7 @@ import { Metadata } from "next";
 
 import { getServerSession } from "@/lib/get-session";
 import AnalyticsReport from "./analytics-report";
+import { canAccessAdminDashboard } from "@/lib/dashboard-access";
 
 export const metadata: Metadata = {
   title: "Web Analytics",
@@ -9,7 +10,7 @@ export const metadata: Metadata = {
 
 export default async function AdminAnalyticsPage() {
   const session = await getServerSession();
-  if (session?.user.role !== "ADMIN") {
+  if (!canAccessAdminDashboard(session?.user.role)) {
     throw new Error("Admin permission required");
   }
 

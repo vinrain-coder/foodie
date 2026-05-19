@@ -29,7 +29,7 @@ const adminCreateUserSchema = z.object({
   email: z.string().email("Email is invalid"),
   password: passwordSchema,
   confirmPassword: z.string().min(1, "Confirm password is required"),
-  role: z.enum(["ADMIN", "USER"]).default("USER"),
+  role: z.enum(USER_ROLES).default("USER"),
 })
   .refine((data) => data.password === data.confirmPassword, {
     message: "Passwords don't match",

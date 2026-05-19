@@ -41,6 +41,8 @@ import Link from "next/link";
 import Image from "next/image";
 import { NavDocuments } from "./nav-documents";
 import { NavContent } from "./nav-content";
+import type { UserRole } from "@/lib/constants";
+import { isRestaurantRole } from "@/lib/dashboard-access";
 
 const data = {
   navMain: [
@@ -70,6 +72,11 @@ const data = {
       title: "Users",
       url: "/admin/users",
       icon: IconUsers,
+    },
+    {
+      title: "Restaurants",
+      url: "/admin/restaurants",
+      icon: IconMapPin,
     },
     {
       title: "Delivery Locations",
@@ -160,11 +167,27 @@ const data = {
 export function AppSidebar({
   siteLogo,
   siteName,
+  userRole,
   ...props
 }: React.ComponentProps<typeof Sidebar> & {
   siteLogo: string;
   siteName: string;
+  userRole: UserRole;
 }) {
+  const restaurant = isRestaurantRole(userRole);
+  const operations = restaurant
+    ? data.operations.filter(
+        (item) => !["Coupons", "Users", "Restaurants"].includes(item.title),
+      )
+    : data.operations;
+  const finance = restaurant ? [] : data.finance;
+  const storefront = restaurant
+    ? data.storefront.filter(
+        (item) =>
+          !["Site Pages", "Blog Posts", "Newsletters"].includes(item.title),
+      )
+    : data.storefront;
+
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
@@ -189,10 +212,14 @@ export function AppSidebar({
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={data.navMain} />
-        <NavDocuments title="Operations" items={data.operations} />
-        <NavDocuments title="Finance" items={data.finance} />
-        <NavDocuments title="Storefront" items={data.storefront} />
+        <NavMain items={data.navMain} createUrl="/admin/menu-items/create" />
+        {operations.length > 0 && (
+          <NavDocuments title="Operations" items={operations} />
+        )}
+        {finance.length > 0 && <NavDocuments title="Finance" items={finance} />}
+        {storefront.length > 0 && (
+          <NavDocuments title="Storefront" items={storefront} />
+        )}
         <NavContent title="Catalog" items={data.catalog} />
         <NavSecondary items={data.navSecondary} className="mt-auto" />
       </SidebarContent>

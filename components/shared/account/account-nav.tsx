@@ -9,32 +9,98 @@ import {
   NavigationMenuList,
   NavigationMenuTrigger,
 } from "@/components/ui/navigation-menu";
+import { authClient } from "@/lib/auth-client";
+import { canAccessAdminDashboard, isRestaurantRole } from "@/lib/dashboard-access";
 import { cn } from "@/lib/utils";
-
-const accountNavGroups = [
-  {
-    label: "Account",
-    items: [
-      { href: "/account", label: "Overview", description: "Your account home" },
-      { href: "/account/orders", label: "Orders", description: "Track and manage purchases" },
-      { href: "/account/addresses", label: "Addresses", description: "Manage delivery addresses" },
-    ],
-  },
-  {
-    label: "Content",
-    items: [
-      { href: "/account/reviews", label: "My Reviews", description: "View and delete product reviews" },
-      { href: "/account/comments", label: "My Comments", description: "View and delete blog comments" },
-    ],
-  },
-  {
-    label: "Settings",
-    items: [{ href: "/account/manage", label: "Login & Security", description: "Update profile, email and password" }],
-  },
-] as const;
 
 export function AccountNav() {
   const pathname = usePathname();
+  const { data: session } = authClient.useSession();
+  const canAccessRestaurantDashboard = canAccessAdminDashboard(
+    session?.user?.role,
+  );
+  const restaurantUser = isRestaurantRole(session?.user?.role);
+  const accountNavGroups = [
+    {
+      label: "Account",
+      items: [
+        {
+          href: "/account",
+          label: "Overview",
+          description: "Your account home",
+        },
+        {
+          href: "/account/orders",
+          label: "Orders",
+          description: "Track and manage purchases",
+        },
+        {
+          href: "/account/addresses",
+          label: "Addresses",
+          description: "Manage delivery addresses",
+        },
+      ],
+    },
+    {
+      label: "Content",
+      items: [
+        {
+          href: "/account/reviews",
+          label: "My Reviews",
+          description: "View and delete product reviews",
+        },
+        {
+          href: "/account/comments",
+          label: "My Comments",
+          description: "View and delete blog comments",
+        },
+      ],
+    },
+    {
+      label: "Restaurant",
+      items: canAccessRestaurantDashboard
+        ? [
+            {
+              href: restaurantUser
+                ? "/restaurant-admin/overview"
+                : "/admin/overview",
+              label: restaurantUser
+                ? "Restaurant Dashboard"
+                : "Admin Dashboard",
+              description: "Open dashboard overview",
+            },
+            {
+              href: restaurantUser
+                ? "/restaurant-admin/menu-items"
+                : "/admin/menu-items",
+              label: "Manage Menu Items",
+              description: "Create and edit menu items",
+            },
+            {
+              href: restaurantUser ? "/restaurant-admin/orders" : "/admin/orders",
+              label: "Manage Orders",
+              description: "Process incoming orders",
+            },
+          ]
+        : [
+            {
+              href: "/restaurant/register",
+              label: "Restaurant Application",
+              description: "Apply to onboard your restaurant",
+            },
+          ],
+    },
+    {
+      label: "Settings",
+      items: [
+        {
+          href: "/account/manage",
+          label: "Login & Security",
+          description: "Update profile, email and password",
+        },
+      ],
+    },
+  ];
 
   return (
     <div className="rounded-xl border bg-card p-3">

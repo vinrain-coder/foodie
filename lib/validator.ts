@@ -154,6 +154,7 @@ const OrderStatusSchema = z.enum([
 export const OrderInputSchema = z
   .object({
     user: MongoId.optional(),
+    restaurant: MongoId.optional(),
     isGuest: z.boolean().default(false),
     userEmail: z.string().email().optional(),
     userName: z.string().optional(),
@@ -776,6 +777,67 @@ const PayoutInputSchema = z
 
 export const AffiliatePayoutInputSchema = PayoutInputSchema;
 export const WalletPayoutInputSchema = PayoutInputSchema;
+
+export const RestaurantApplicationInputSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(2, "Restaurant name must be at least 2 characters")
+    .max(120, "Restaurant name must be at most 120 characters"),
+  slug: z
+    .string()
+    .trim()
+    .min(3, "Slug must be at least 3 characters")
+    .max(80, "Slug must be at most 80 characters")
+    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, {
+      message: "Slug must be lowercase and can contain hyphens only",
+    }),
+  logo: z.string().url("Logo must be a valid URL").optional().or(z.literal("")),
+  coverImage: z
+    .string()
+    .url("Cover image must be a valid URL")
+    .optional()
+    .or(z.literal("")),
+  phone: z
+    .string()
+    .trim()
+    .min(7, "Phone number is too short")
+    .max(20, "Phone number is too long")
+    .regex(/^[+0-9()\s-]+$/, "Phone number contains invalid characters"),
+  whatsapp: z
+    .string()
+    .trim()
+    .min(7, "WhatsApp number is too short")
+    .max(20, "WhatsApp number is too long")
+    .regex(/^[+0-9()\s-]+$/, "WhatsApp number contains invalid characters"),
+  location: z
+    .string()
+    .trim()
+    .min(5, "Location is required")
+    .max(300, "Location must be at most 300 characters"),
+  description: z
+    .string()
+    .trim()
+    .min(20, "Description must be at least 20 characters")
+    .max(2000, "Description must be at most 2000 characters"),
+  openingHours: z
+    .string()
+    .trim()
+    .min(5, "Opening hours are required")
+    .max(500, "Opening hours must be at most 500 characters"),
+  deliveryFee: Price("Delivery fee"),
+  minimumOrderAmount: Price("Minimum order amount"),
+  email: z.string().email("Invalid email address").optional().or(z.literal("")),
+  cuisineTypes: z.array(z.string().trim().min(1).max(50)).max(20).default([]),
+  acceptsDelivery: z.boolean().default(true),
+  acceptsPickup: z.boolean().default(false),
+  averagePrepTimeMinutes: z.coerce
+    .number()
+    .int("Average prep time must be a whole number")
+    .min(5, "Average prep time must be at least 5 minutes")
+    .max(300, "Average prep time must be at most 300 minutes")
+    .default(30),
+});
 
 const AdminAdjustmentBaseSchema = z.object({
   userId: MongoId,

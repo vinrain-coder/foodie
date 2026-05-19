@@ -15,14 +15,17 @@ import {
 import { SidebarMenu, SidebarMenuItem } from "@/components/ui/sidebar";
 import { authClient } from "@/lib/auth-client";
 import Link from "next/link";
+import { canAccessAdminDashboard, isRestaurantRole } from "@/lib/dashboard-access";
 import {
   HeartIcon,
   MessageCircle,
   ShieldIcon,
   ShoppingCartIcon,
   Star,
+  Store,
   Ticket,
   UserIcon,
+  UtensilsCrossed,
   Users,
 } from "lucide-react";
 import { SignOutButton } from "../sign-out-button";
@@ -30,6 +33,10 @@ import { SignOutButton } from "../sign-out-button";
 export function UserSidebar() {
   const { data: session, isPending } = authClient.useSession();
   const isAffiliate = session?.user?.isAffiliate;
+  const canAccessRestaurantDashboard = canAccessAdminDashboard(
+    session?.user?.role,
+  );
+  const restaurantUser = isRestaurantRole(session?.user?.role);
 
   if (isPending)
     return <div className="w-12 h-12 bg-gray-200 rounded-full animate-pulse" />; // placeholder
@@ -153,6 +160,63 @@ export function UserSidebar() {
                   Coins
                 </Link>
               </DropdownMenuItem>
+              {canAccessRestaurantDashboard ? (
+                <>
+                  <DropdownMenuItem asChild onSelect={handleSelect}>
+                    <Link
+                      href={
+                        restaurantUser
+                          ? "/restaurant-admin/overview"
+                          : "/admin/overview"
+                      }
+                      className="flex items-center gap-2 w-full cursor-pointer"
+                    >
+                      {restaurantUser ? (
+                        <Store className="h-4 w-4" />
+                      ) : (
+                        <ShieldIcon className="h-4 w-4" />
+                      )}
+                      {restaurantUser ? "Restaurant Dashboard" : "Admin Dashboard"}
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild onSelect={handleSelect}>
+                    <Link
+                      href={
+                        restaurantUser
+                          ? "/restaurant-admin/menu-items"
+                          : "/admin/menu-items"
+                      }
+                      className="flex items-center gap-2 w-full cursor-pointer"
+                    >
+                      <UtensilsCrossed className="h-4 w-4" />
+                      Manage Menu Items
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild onSelect={handleSelect}>
+                    <Link
+                      href={
+                        restaurantUser
+                          ? "/restaurant-admin/orders"
+                          : "/admin/orders"
+                      }
+                      className="flex items-center gap-2 w-full cursor-pointer"
+                    >
+                      <ShoppingCartIcon className="h-4 w-4" />
+                      Manage Orders
+                    </Link>
+                  </DropdownMenuItem>
+                </>
+              ) : (
+                <DropdownMenuItem asChild onSelect={handleSelect}>
+                  <Link
+                    href="/restaurant/register"
+                    className="flex items-center gap-2 w-full cursor-pointer"
+                  >
+                    <Store className="h-4 w-4" />
+                    Restaurant Application
+                  </Link>
+                </DropdownMenuItem>
+              )}
               {isAffiliate && (
                 <DropdownMenuItem asChild onSelect={handleSelect}>
                   <Link
@@ -161,17 +225,6 @@ export function UserSidebar() {
                   >
                     <Users className="h-4 w-4" />
                     Affiliate Dashboard
-                  </Link>
-                </DropdownMenuItem>
-              )}
-              {session?.user?.role === "ADMIN" && (
-                <DropdownMenuItem asChild onSelect={handleSelect}>
-                  <Link
-                    href="/admin/overview"
-                    className="flex items-center gap-2 w-full cursor-pointer"
-                  >
-                    <ShieldIcon className="h-4 w-4" />
-                    Admin
                   </Link>
                 </DropdownMenuItem>
               )}

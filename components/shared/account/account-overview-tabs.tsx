@@ -11,11 +11,15 @@ import {
   PackageCheckIcon,
   ShieldCheck,
   Star,
+  Store,
   User,
+  UtensilsCrossed,
   Wallet,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
+import { authClient } from "@/lib/auth-client";
+import { canAccessAdminDashboard, isRestaurantRole } from "@/lib/dashboard-access";
 
 type AccountLink = {
   href: string;
@@ -113,10 +117,58 @@ const tabGroups: {
 ];
 
 export function AccountOverviewTabs() {
+  const { data: session } = authClient.useSession();
+  const canAccessRestaurantDashboard = canAccessAdminDashboard(
+    session?.user?.role,
+  );
+  const restaurantUser = isRestaurantRole(session?.user?.role);
+  const restaurantLinks: AccountLink[] = canAccessRestaurantDashboard
+    ? [
+        {
+          href: restaurantUser ? "/restaurant-admin/overview" : "/admin/overview",
+          title: restaurantUser ? "Restaurant Dashboard" : "Admin Dashboard",
+          description: restaurantUser
+            ? "Open your restaurant dashboard overview"
+            : "Open the admin dashboard overview",
+          icon: Store,
+        },
+        {
+          href: restaurantUser
+            ? "/restaurant-admin/menu-items"
+            : "/admin/menu-items",
+          title: "Manage Menu Items",
+          description: "Create and update your menu items",
+          icon: UtensilsCrossed,
+        },
+        {
+          href: restaurantUser ? "/restaurant-admin/orders" : "/admin/orders",
+          title: "Manage Orders",
+          description: "View and process incoming orders",
+          icon: PackageCheckIcon,
+        },
+      ]
+    : [
+        {
+          href: "/restaurant/register",
+          title: "Restaurant Application",
+          description: "Apply to onboard your restaurant",
+          icon: Store,
+        },
+      ];
+
+  const groups = [
+    ...tabGroups,
+    {
+      value: "restaurant",
+      label: "Restaurant",
+      links: restaurantLinks,
+    },
+  ];
+
   return (
     <Tabs defaultValue="account" className="w-full gap-4">
-      <TabsList className="grid h-auto w-full grid-cols-1 gap-1 rounded-xl p-1 sm:grid-cols-3">
-        {tabGroups.map((group) => (
+      <TabsList className="grid h-auto w-full grid-cols-1 gap-1 rounded-xl p-1 sm:grid-cols-4">
+        {groups.map((group) => (
           <TabsTrigger
             key={group.value}
             value={group.value}
@@ -127,7 +179,7 @@ export function AccountOverviewTabs() {
         ))}
       </TabsList>
 
-      {tabGroups.map((group) => (
+      {groups.map((group) => (
         <TabsContent key={group.value} value={group.value}>
           <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 mb-4">
             {group.links.map((link) => {

@@ -9,6 +9,7 @@ import { revalidateTag } from "next/cache";
 import { cacheLife, cacheTag } from "next/cache";
 import { getServerSession } from "../get-session";
 import { getSetting } from "./setting.actions";
+import { canAccessAdminDashboard } from "@/lib/dashboard-access";
 
 export type SerializedDeliveryLocation = Omit<IDeliveryLocation, "_id"> & { _id: string };
 
@@ -78,7 +79,9 @@ export async function getDeliveryLocationById(id: string) {
 export async function createDeliveryLocation(data: any): Promise<ActionState> {
   try {
     const session = await getServerSession();
-    if (session?.user?.role !== "ADMIN") throw new Error("Unauthorized");
+    if (!canAccessAdminDashboard(session?.user?.role)) {
+      throw new Error("Unauthorized");
+    }
 
     await connectToDatabase();
     const validated = DeliveryLocationInputSchema.safeParse(data);
@@ -110,7 +113,9 @@ export async function createDeliveryLocationsBulk(data: {
 }) {
   try {
     const session = await getServerSession();
-    if (session?.user?.role !== "ADMIN") throw new Error("Unauthorized");
+    if (!canAccessAdminDashboard(session?.user?.role)) {
+      throw new Error("Unauthorized");
+    }
 
     await connectToDatabase();
 
@@ -175,7 +180,9 @@ export async function createDeliveryLocationsBulk(data: {
 export async function updateDeliveryLocation(data: any): Promise<ActionState> {
   try {
     const session = await getServerSession();
-    if (session?.user?.role !== "ADMIN") throw new Error("Unauthorized");
+    if (!canAccessAdminDashboard(session?.user?.role)) {
+      throw new Error("Unauthorized");
+    }
 
     await connectToDatabase();
     const validated = DeliveryLocationUpdateSchema.safeParse(data);
@@ -210,7 +217,9 @@ export async function updateDeliveryLocation(data: any): Promise<ActionState> {
 export async function deleteDeliveryLocation(id: string) {
   try {
     const session = await getServerSession();
-    if (session?.user?.role !== "ADMIN") throw new Error("Unauthorized");
+    if (!canAccessAdminDashboard(session?.user?.role)) {
+      throw new Error("Unauthorized");
+    }
 
     await connectToDatabase();
     const deletedLocation = await DeliveryLocation.findByIdAndDelete(id);

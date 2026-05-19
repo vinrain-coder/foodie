@@ -12,6 +12,7 @@ import {
   User,
   Clock,
   Crown,
+  Store,
 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -21,6 +22,7 @@ interface UserStatsCardsProps {
     totalUsers: number;
     adminCount: number;
     customerCount: number;
+    restaurantCount: number;
     premiumCount: number;
     recentUsers: number;
   };
@@ -72,6 +74,13 @@ export default function UserStatsCards({
       color: "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400",
     },
     {
+      id: "RESTAURANT",
+      label: "Restaurants",
+      value: stats.restaurantCount,
+      icon: Store,
+      color: "bg-cyan-100 text-cyan-600 dark:bg-cyan-900/20 dark:text-cyan-400",
+    },
+    {
       id: "PREMIUM",
       label: "Premium",
       value: stats.premiumCount,
@@ -114,7 +123,7 @@ export default function UserStatsCards({
       </div>
 
       {isVisible && (
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-6">
           {statConfig.map((stat) => {
             const isActive = currentRole === stat.id;
             const Icon = stat.icon;

@@ -84,7 +84,7 @@ const MenuItemList = ({ data, page }: MenuItemListProps) => {
                   </TableCell>
                   <TableCell className="max-w-60 truncate font-medium">
                     <Link
-                      href={`/admin/menuItems/${menuItem._id}`}
+                      href={`/admin/menu-items/${menuItem._id}`}
                       className="hover:underline"
                     >
                       {menuItem.name}
