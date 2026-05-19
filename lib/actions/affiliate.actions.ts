@@ -123,18 +123,16 @@ export async function registerAffiliate(data: any): Promise<ActionState> {
   }
 }
 
-export async function getAffiliateAnalytics(dateRange?: {
-  from?: string;
-  to?: string;
-}) {
+export async function getAffiliateAnalytics(
+  dateRange?: { from?: string; to?: string },
+) {
   try {
     await connectToDatabase();
     const session = await getServerSession();
     if (!session) throw new Error("User not authenticated");
 
     const affiliate = await Affiliate.findOne({ user: session.user.id });
-    if (!affiliate)
-      return { success: false, message: "Affiliate profile not found" };
+    if (!affiliate) return { success: false, message: "Affiliate profile not found" };
 
     const matchFilter: any = {
       affiliate: affiliate._id,
@@ -143,8 +141,7 @@ export async function getAffiliateAnalytics(dateRange?: {
 
     if (dateRange?.from || dateRange?.to) {
       matchFilter.createdAt = {};
-      if (dateRange?.from)
-        matchFilter.createdAt.$gte = new Date(dateRange.from);
+      if (dateRange?.from) matchFilter.createdAt.$gte = new Date(dateRange.from);
       if (dateRange?.to) {
         const toDate = new Date(dateRange.to);
         toDate.setHours(23, 59, 59, 999);
@@ -229,9 +226,9 @@ export async function getAffiliateAnalytics(dateRange?: {
 }
 
 export async function getAffiliateDashboardData(params?: {
-  payoutPage?: number;
-  payoutLimit?: number;
-}) {
+   payoutPage?: number;
+   payoutLimit?: number;
+ }) {
   try {
     await connectToDatabase();
     const session = await getServerSession();
@@ -285,14 +282,10 @@ export async function getAffiliateDashboardData(params?: {
     payoutStats.forEach((s: any) => {
       payoutSummary.total.count += s.count;
       payoutSummary.total.amount += s.amount;
-      if (s._id === "paid")
-        payoutSummary.paid = { count: s.count, amount: s.amount };
-      if (s._id === "pending")
-        payoutSummary.pending = { count: s.count, amount: s.amount };
-      if (s._id === "processing")
-        payoutSummary.processing = { count: s.count, amount: s.amount };
-      if (s._id === "rejected")
-        payoutSummary.rejected = { count: s.count, amount: s.amount };
+      if (s._id === "paid") payoutSummary.paid = { count: s.count, amount: s.amount };
+      if (s._id === "pending") payoutSummary.pending = { count: s.count, amount: s.amount };
+      if (s._id === "processing") payoutSummary.processing = { count: s.count, amount: s.amount };
+      if (s._id === "rejected") payoutSummary.rejected = { count: s.count, amount: s.amount };
     });
 
     return {

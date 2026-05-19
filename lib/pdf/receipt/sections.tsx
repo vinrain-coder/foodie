@@ -148,9 +148,7 @@ export const HeaderSection = ({
             {data.kind === "invoice" ? "INVOICE" : "RECEIPT"}
           </Text>
           <Text style={styles.subtle}>{data.invoiceNumber}</Text>
-          <Text style={[styles.subtle, { marginTop: 2 }]}>
-            {branding.website}
-          </Text>
+          <Text style={[styles.subtle, { marginTop: 2 }]}>{branding.website}</Text>
         </View>
       </View>
 
@@ -223,7 +221,7 @@ export const CustomerSection = ({ data, styles }: SectionProps) => {
   );
 };
 
-export const ProductTableSection = ({
+export const MenuItemTableSection = ({
   data,
   styles,
   themeMode,
@@ -232,10 +230,10 @@ export const ProductTableSection = ({
 }: SectionProps) => {
   return (
     <View style={styles.card}>
-      <Text style={styles.sectionTitle}>Products</Text>
+      <Text style={styles.sectionTitle}>Menu Items</Text>
       <View style={styles.tableHead}>
         <Text style={styles.tableColImage}>Item</Text>
-        <Text style={styles.tableColProduct}>Product</Text>
+        <Text style={styles.tableColMenuItem}>MenuItem</Text>
         <Text style={styles.tableColVariant}>Variant</Text>
         <Text style={styles.tableColQty}>Qty</Text>
         <Text style={styles.tableColUnit}>Unit</Text>
@@ -257,7 +255,7 @@ export const ProductTableSection = ({
                 />
               </View>
             </View>
-            <View style={styles.tableColProduct}>
+            <View style={styles.tableColMenuItem}>
               <Text style={styles.body}>{item.name}</Text>
             </View>
             <View style={styles.tableColVariant}>
@@ -420,7 +418,7 @@ export const FooterSection = ({
         <Text style={styles.subtle}>{branding.supportEmail}</Text>
         <Text style={styles.subtle}>{branding.supportPhone || "-"}</Text>
       </View>
-      <View style={[styles.row, { marginTop: 6 }]}>
+      <View style={[styles.row, { marginTop: 6 }]}> 
         <Text style={styles.subtle}>{branding.supportAddress || "-"}</Text>
         <Text style={styles.subtle}>
           {(branding.socials || [])

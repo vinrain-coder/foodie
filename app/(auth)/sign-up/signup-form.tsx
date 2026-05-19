@@ -145,10 +145,7 @@ export function SignUpForm() {
                         {...field}
                       />
                     </InputGroup>
-                    <FieldError
-                      className="text-xs"
-                      errors={[fieldState.error]}
-                    />
+                    <FieldError className="text-xs"  errors={[fieldState.error]} />
                   </Field>
                 )}
               />
@@ -174,10 +171,7 @@ export function SignUpForm() {
                         {...field}
                       />
                     </InputGroup>
-                    <FieldError
-                      className="text-xs"
-                      errors={[fieldState.error]}
-                    />
+                    <FieldError className="text-xs"  errors={[fieldState.error]} />
                   </Field>
                 )}
               />
@@ -191,18 +185,14 @@ export function SignUpForm() {
                     <FieldLabel className="form-premium-label">
                       Password
                     </FieldLabel>
-
-                    <PasswordInput
-                      placeholder="Create a strong password"
-                      className="auth-input"
-                      aria-invalid={fieldState.invalid}
-                      {...field}
-                    />
-
-                    <FieldError
-                      className="text-xs"
-                      errors={[fieldState.error]}
-                    />
+                    
+                      <PasswordInput
+                        placeholder="Create a strong password"
+                        className="auth-input"
+                        aria-invalid={fieldState.invalid} {...field}
+                      />
+                    
+                    <FieldError className="text-xs"  errors={[fieldState.error]} />
                   </Field>
                 )}
               />

@@ -6,4 +6,5 @@ export type UserRole = (typeof USER_ROLES)[number];
 
 export const SUBSCRIPTION_TIERS = ["FREE", "PREMIUM"] as const;
 export type SubscriptionTier = (typeof SUBSCRIPTION_TIERS)[number];
+export const COLORS = ["Gold", "Green", "Red"];
 export const THEMES = ["Light", "Dark", "System"];

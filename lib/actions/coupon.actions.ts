@@ -46,7 +46,7 @@ export async function createCoupon(data: ICouponInput): Promise<ActionState> {
 
 // UPDATE COUPON
 export async function updateCoupon(
-  data: z.infer<typeof CouponUpdateSchema>,
+  data: z.infer<typeof CouponUpdateSchema>
 ): Promise<ActionState> {
   try {
     const validated = CouponUpdateSchema.safeParse(data);
@@ -269,8 +269,7 @@ export async function validateCoupon(code: string, itemsTotal: number) {
         if (userUsageCount >= coupon.usageLimitPerUser) {
           return {
             success: false,
-            message:
-              "You have reached your personal usage limit for this coupon.",
+            message: "You have reached your personal usage limit for this coupon.",
           };
         }
       }
@@ -428,7 +427,5 @@ export async function decrementCouponUsage(couponId: string) {
 
   revalidatePath("/admin/coupons");
 
-  return updatedCoupon
-    ? (JSON.parse(JSON.stringify(updatedCoupon)) as ICoupon)
-    : null;
+  return updatedCoupon ? (JSON.parse(JSON.stringify(updatedCoupon)) as ICoupon) : null;
 }

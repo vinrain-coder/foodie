@@ -3,10 +3,7 @@ import {
   buildOrderPdf,
   buildReceiptFileName,
 } from "@/lib/pdf/receipt/generator";
-import type {
-  BuildReceiptPdfOptions,
-  ReceiptDocumentKind,
-} from "@/lib/pdf/receipt/types";
+import type { BuildReceiptPdfOptions, ReceiptDocumentKind } from "@/lib/pdf/receipt/types";
 
 export async function buildOrderReceiptPdf(
   order: SerializedOrder,
@@ -36,3 +33,4 @@ export const getOrderPdfFileName = (
   orderId: string,
   kind: ReceiptDocumentKind = "receipt",
 ) => buildReceiptFileName(kind, orderId, "shoepedi");
+

@@ -23,12 +23,7 @@ export interface IAffiliate extends Document {
 
 const affiliateSchema = new Schema<IAffiliate>(
   {
-    user: {
-      type: Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-      unique: true,
-    },
+    user: { type: Schema.Types.ObjectId, ref: "User", required: true, unique: true },
     affiliateCode: { type: String, required: true, unique: true },
     status: {
       type: String,
@@ -51,7 +46,7 @@ const affiliateSchema = new Schema<IAffiliate>(
   },
   {
     timestamps: true,
-  },
+  }
 );
 
 const Affiliate =

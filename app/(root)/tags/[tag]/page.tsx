@@ -1,0 +1,199 @@
+import Pagination from "@/components/shared/pagination";
+import MenuItemSortSelector from "@/components/shared/menuItem/menu-item-sort-selector";
+import MenuItemLayoutSwitcher from "@/components/shared/menuItem/menu-item-layout-switcher";
+import {
+  getAllMenuItems,
+  getAllCategories,
+  getAllTags,
+} from "@/lib/actions/menu.item.actions";
+import FiltersClient from "@/components/shared/search/filters-client";
+import { IMenuItem } from "@/lib/db/models/menu.item.model";
+import Breadcrumb from "@/components/shared/breadcrumb";
+import { Metadata } from "next";
+import { getSetting } from "@/lib/actions/setting.actions";
+import { getTagBySlug } from "@/lib/actions/tag.actions";
+import { notFound, redirect } from "next/navigation";
+
+/* Metadata */
+export async function generateMetadata({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ tag: string }>;
+  searchParams: Promise<any>;
+}): Promise<Metadata> {
+  const { tag: tagSlug } = await params;
+  const sp = await searchParams;
+
+  const [tagData, { site }] = await Promise.all([
+    getTagBySlug(tagSlug),
+    getSetting(),
+  ]);
+
+  if (!tagData) return {};
+
+  const titleBase = tagData.name || tagSlug.replace(/-/g, " ");
+  const descriptionBase =
+    tagData.description || `Shop ${titleBase} menuItems at ${site.name}.`;
+
+  const hasFilters = Object.keys(sp || {}).some(
+    (k) => sp[k] && sp[k] !== "all" && k !== "page",
+  );
+
+  return {
+    title: hasFilters ? `${titleBase} - Page ${sp.page || 1}` : titleBase,
+    description: descriptionBase,
+    alternates: {
+      canonical: `${site.url}/tags/${tagData.slug}`,
+    },
+    robots: hasFilters
+      ? { index: false, follow: true }
+      : { index: true, follow: true },
+    openGraph: {
+      title: titleBase,
+      description: descriptionBase,
+      url: `${site.url}/tags/${tagData.slug}`,
+      images: tagData.image ? [tagData.image] : [],
+      type: "website",
+    },
+  };
+}
+
+/* ------------------------- Sorting -------------------------- */
+const sortOrders = [
+  { value: "price-low-to-high", name: "Price: Low to high" },
+  { value: "price-high-to-low", name: "Price: High to low" },
+  { value: "newest-arrivals", name: "Newest arrivals" },
+  { value: "avg-customer-review", name: "Avg. customer review" },
+  { value: "best-selling", name: "Best selling" },
+];
+
+/* ------------------------- Page ----------------------------- */
+export default async function TagPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ tag: string }>;
+  searchParams: Promise<any>;
+}) {
+  const { tag: tagSlug } = await params;
+  const sp = await searchParams;
+
+  const tagData = await getTagBySlug(tagSlug);
+  if (!tagData) notFound();
+
+  // 🔥 Enforce canonical slug from DB
+  if (tagData.slug !== tagSlug) {
+    redirect(`/tags/${tagData.slug}`);
+  }
+
+  const {
+    q = "all",
+    category = "all",
+    price = "all",
+    rating = "all",
+    sort = "best-selling",
+    page = "1",
+  } = sp;
+
+  const filterParams = {
+    q,
+    category,
+    tag: tagData.slug,
+    price,
+    rating,
+    sort,
+    page,
+  };
+
+  const [categories, tags, data, { site }] = await Promise.all([
+    getAllCategories(),
+    getAllTags(),
+    getAllMenuItems({
+      query: q,
+      tag: tagData.slug,
+      category,
+      price,
+      rating,
+      sort,
+      page: Number(page),
+    }),
+    getSetting(),
+  ]);
+
+  /* ---------------------- Schema ----------------------- */
+  const tagSchema = {
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    name: tagData.name,
+    description: tagData.description,
+    url: `${site.url}/tags/${tagData.slug}`,
+    publisher: {
+      "@type": "Organization",
+      name: site.name,
+      logo: site.logo,
+    },
+    mainEntity: {
+      "@type": "ItemList",
+      numberOfItems: data.totalMenuItems,
+      itemListElement: data.menuItems.map((p: IMenuItem, index: number) => ({
+        "@type": "ListItem",
+        position: index + 1,
+        url: `${site.url}/menu-item/${p.slug}`,
+        name: p.name,
+        image: p.images[0],
+      })),
+    },
+  };
+
+  return (
+    <div className="space-y-2 md:space-y-4">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(tagSchema) }}
+      />
+
+      <Breadcrumb />
+
+      {/* Header */}
+      <div className="my-1 rounded-xl bg-card p-2.5 md:my-2 md:border-b md:rounded-none md:px-0 md:py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-2.5 md:gap-3">
+        <div>
+          <h1 className="text-xl font-bold capitalize">{tagData.name}</h1>
+          <p>
+            Buy menu items tagged with {tagData.name}. Filter by category,
+            price, rating, and more.
+          </p>
+          {data.totalMenuItems === 0
+            ? "No results"
+            : `${data.from}-${data.to} of ${data.totalMenuItems}`}{" "}
+          menu items
+        </div>
+
+        <MenuItemSortSelector
+          sortOrders={sortOrders}
+          sort={sort}
+          params={filterParams}
+        />
+      </div>
+
+      {/* Content */}
+      <div className="bg-card grid md:grid-cols-5 md:gap-6 py-2 md:py-3">
+        <FiltersClient
+          initialParams={filterParams}
+          categories={categories}
+          tags={tags}
+          basePath={`/tags/${tagData.slug}`}
+          lockTag
+        />
+
+        <div className="md:col-span-4 space-y-4">
+          <MenuItemLayoutSwitcher menuItems={data.menuItems as IMenuItem[]} />
+
+          {data.totalPages > 1 && (
+            <Pagination page={page} totalPages={data.totalPages} />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

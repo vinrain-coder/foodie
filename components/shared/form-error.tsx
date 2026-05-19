@@ -13,7 +13,7 @@ export function FormError({ message, className }: FormErrorProps) {
     <div
       className={cn(
         "flex items-center gap-x-2 text-sm text-destructive bg-destructive/15 p-3 rounded-md",
-        className,
+        className
       )}
     >
       <AlertCircle className="h-4 w-4" />

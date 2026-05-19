@@ -1,4 +1,4 @@
-import { colors, layout } from "./layout";
+﻿import { colors, layout } from "./layout";
 import { escapeHTML } from "@/lib/utils";
 
 type AuthEmailLayoutProps = {

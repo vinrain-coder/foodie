@@ -26,7 +26,7 @@ export function formUrlQuery({
       url: window.location.pathname,
       query: currentUrl,
     },
-    { skipNull: true },
+    { skipNull: true }
   );
 }
 
@@ -73,6 +73,7 @@ export const round2 = (num: number) =>
 export const generateId = () =>
   Array.from({ length: 24 }, () => Math.floor(Math.random() * 10)).join("");
 
+ 
 export const flattenZodErrors = (error: ZodError) => {
   const fieldErrors = error.flatten().fieldErrors as Record<
     string,
@@ -90,48 +91,27 @@ export const flattenZodErrors = (error: ZodError) => {
 export const formatError = (error: unknown): string => {
   if (error instanceof ZodError) {
     return error.issues.map((issue) => issue.message).join(". ");
-  } else if (
-    error &&
-    typeof error === "object" &&
-    "name" in error &&
-    error.name === "ValidationError"
-  ) {
-    const e = error as unknown as Record<string, unknown> & {
-      errors: Record<string, { message: string }>;
-    };
+  } else if (error && typeof error === "object" && "name" in error && error.name === "ValidationError") {
+    const e = error as unknown as Record<string, unknown> & { errors: Record<string, { message: string }> };
     const fieldErrors = Object.keys(e.errors).map((field) => {
       const errorMessage = e.errors[field].message;
       return errorMessage;
     });
     return fieldErrors.join(". ");
-  } else if (
-    error &&
-    typeof error === "object" &&
-    "code" in error &&
-    error.code === 11000 &&
-    "keyValue" in error
-  ) {
-    const e = error as Record<string, unknown> & {
-      keyValue: Record<string, unknown>;
-    };
+  } else if (error && typeof error === "object" && "code" in error && error.code === 11000 && "keyValue" in error) {
+    const e = error as Record<string, unknown> & { keyValue: Record<string, unknown> };
     const keys = Object.keys(e.keyValue);
     if (keys.length > 1) {
       return `fields ${keys.join(", ")} already exist`;
     } else if (keys.length === 1) {
       return `${keys[0]} already exists`;
     }
-    return typeof error === "object" &&
-      error !== null &&
-      "message" in error &&
-      typeof error.message === "string"
+    return typeof error === "object" && error !== null && "message" in error && typeof error.message === "string"
       ? error.message
       : "Duplicate key error";
   } else {
     // return 'Something went wrong. please try again'
-    return error &&
-      typeof error === "object" &&
-      "message" in error &&
-      typeof error.message === "string"
+    return error && typeof error === "object" && "message" in error && typeof error.message === "string"
       ? error.message
       : JSON.stringify(error);
   }
@@ -145,10 +125,7 @@ export function calculateFutureDate(days: number) {
 export function getMonthName(yearMonth: string): string {
   const [year, month] = yearMonth.split("-").map(Number);
   const date = new Date(year, month - 1);
-  const monthName = date.toLocaleString("default", {
-    month: "long",
-    timeZone: "Africa/Nairobi",
-  });
+  const monthName = date.toLocaleString("default", { month: "long", timeZone: "Africa/Nairobi" });
 
   const nairobiParts = new Intl.DateTimeFormat("en-US", {
     timeZone: "Africa/Nairobi",
@@ -156,14 +133,8 @@ export function getMonthName(yearMonth: string): string {
     month: "numeric",
   }).formatToParts(new Date());
 
-  const nairobiYear = parseInt(
-    nairobiParts.find((p) => p.type === "year")!.value,
-    10,
-  );
-  const nairobiMonth = parseInt(
-    nairobiParts.find((p) => p.type === "month")!.value,
-    10,
-  );
+  const nairobiYear = parseInt(nairobiParts.find((p) => p.type === "year")!.value, 10);
+  const nairobiMonth = parseInt(nairobiParts.find((p) => p.type === "month")!.value, 10);
 
   if (year === nairobiYear && month === nairobiMonth) {
     return `${monthName} Ongoing`;
@@ -187,8 +158,7 @@ export function timeUntilMidnight(): { hours: number; minutes: number } {
     hour12: false,
   }).formatToParts(new Date());
 
-  const getValue = (type: string) =>
-    parseInt(nairobiParts.find((p) => p.type === type)!.value, 10);
+  const getValue = (type: string) => parseInt(nairobiParts.find((p) => p.type === type)!.value, 10);
 
   const year = getValue("year");
   const month = getValue("month");
@@ -240,10 +210,7 @@ export const formatDateTime = (dateInput: Date | string | number) => {
     };
   }
 
-  const formattedDateTime: string = parsedDate.toLocaleString(
-    "en-US",
-    dateTimeOptions,
-  );
+  const formattedDateTime: string = parsedDate.toLocaleString("en-US", dateTimeOptions);
   const formattedDate: string = parsedDate.toLocaleString("en-US", dateOptions);
   const formattedTime: string = parsedDate.toLocaleString("en-US", timeOptions);
   return {
@@ -264,10 +231,7 @@ export function escapeRegExp(string: string) {
 /**
  * Normalizes and compares user roles.
  */
-export const hasRole = (
-  userRole: string | undefined,
-  targetRole: "admin" | "user",
-) => {
+export const hasRole = (userRole: string | undefined, targetRole: "admin" | "user") => {
   if (!userRole) return false;
   const normalizedUserRole = userRole.toLowerCase();
 
@@ -305,10 +269,6 @@ export const getFilterUrl = ({
     rating?: string;
     sort?: string;
     page?: string;
-    brand?: string;
-    gender?: string;
-    color?: string;
-    size?: string;
   };
   tag?: string;
   category?: string;

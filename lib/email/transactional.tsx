@@ -1,6 +1,6 @@
 import { sendEmail } from "./send";
 import { IOrder } from "@/lib/db/models/order.model";
-import { IProduct } from "@/lib/db/models/product.model";
+import { IMenuItem } from "@/lib/db/models/menu.item.model";
 import { getSetting } from "@/lib/actions/setting.actions";
 import {
   buildOrderReceiptPdf,
@@ -180,16 +180,16 @@ export const sendAskReviewOrderItems = async (order: IOrder) => {
 
 export const sendStockSubscriptionNotification = async (
   email: string,
-  product: IProduct,
+  menuItem: IMenuItem,
   unsubscribeToken: string,
 ) => {
   const { site } = await getSetting();
 
   await sendEmail({
     to: email,
-    subject: `🔔 "${product.name}" is back in stock!`,
+    subject: `🔔 "${menuItem.name}" is back in stock!`,
     html: stockSubscriptionNotificationTemplate({
-      product,
+      menuItem,
       siteUrl: site.url,
       siteName: site.name,
       siteCopyright: site.copyright,

@@ -16,7 +16,7 @@ const Price = (field: string) =>
     );
 
 export const ReviewInputSchema = z.object({
-  product: z.string().min(1, "Product ID is required"),
+  menuItem: z.string().min(1, "Menu Item ID is required"),
   user: z.string().min(1, "User ID is required"), // ✅ FIX
   isVerifiedPurchase: z.boolean().default(false),
   title: z.string().min(1, "Title is required"),
@@ -38,13 +38,11 @@ export const ReviewInputSchema = z.object({
     .max(5, "Rating must be at most 5"),
 });
 
-const ProductInputBase = z.object({
+const MenuItemInputBase = z.object({
   name: z.string().min(3, "Name must be at least 3 characters"),
   slug: z.string().min(3, "Slug must be at least 3 characters"),
   category: z.string().min(1, "Category is required"),
-  gender: z.enum(["male", "female", "unisex"]).nullable().optional(),
-  images: z.array(z.string()).min(1, "Product must have at least one image"),
-  brand: z.string().optional().or(z.literal("")),
+  images: z.array(z.string()).min(1, "Menu Item must have at least one image"),
   videoLink: z
     .string()
     .optional()
@@ -58,14 +56,11 @@ const ProductInputBase = z.object({
   description: z.string().min(1, "Description is required"),
   isPublished: z.boolean(),
   price: Price("Price"),
-  listPrice: Price("List price"),
   countInStock: z.coerce
     .number()
     .int()
     .nonnegative("Count in stock must be a non-negative number"),
   tags: z.array(z.string()).default([]),
-  sizes: z.array(z.string()).default([]),
-  colors: z.array(z.string()).default([]),
   avgRating: z.coerce
     .number()
     .min(0, "Average rating must be at least 0")
@@ -84,16 +79,16 @@ const ProductInputBase = z.object({
     .nonnegative("Number of sales must be a non-negative number"),
 });
 
-export const ProductInputSchema = ProductInputBase;
+export const MenuItemInputSchema = MenuItemInputBase;
 
-export const ProductUpdateSchema = ProductInputBase.extend({
+export const MenuItemUpdateSchema = MenuItemInputBase.extend({
   _id: z.string(),
 });
 
 // Order Item
 export const OrderItemSchema = z.object({
   clientId: z.string().min(1, "clientId is required"),
-  product: z.string().min(1, "Product is required"),
+  menuItem: z.string().min(1, "Menu Item is required"),
   name: z.string().min(1, "Name is required"),
   slug: z.string().min(1, "Slug is required"),
   category: z.string().min(1, "Category is required"),
@@ -107,8 +102,6 @@ export const OrderItemSchema = z.object({
     .nonnegative("Quantity must be a non-negative number"),
   image: z.string().min(1, "Image is required"),
   price: Price("Price"),
-  size: z.string().optional(),
-  color: z.string().optional(),
 });
 export const ShippingAddressSchema = z.object({
   email: z.string().email().optional(),
@@ -584,7 +577,7 @@ export const NewsletterSubscriptionSchema = z.object({
 
 // Stock subscription
 export const StockSubscriptionSchema = z.object({
-  product: MongoId,
+  menuItem: MongoId,
   email: z.string().email("Invalid email address"),
   subscribedAt: z.date().default(() => new Date()),
   isNotified: z.boolean().default(false),
@@ -631,7 +624,7 @@ export const CategoryBase = z.object({
 export const CategoryInputSchema = CategoryBase;
 
 export const CategoryUpdateSchema = CategoryBase.partial().extend({
-  _id: z.string().min(1, "Product ID is required"),
+  _id: z.string().min(1, "Menu Item ID is required"),
 });
 
 // brand schema
@@ -841,4 +834,23 @@ export const SupportTicketInputSchema = z.object({
   type: z.enum(["complaint", "query", "recommendation"]),
   subject: z.string().trim().min(5, "Subject must be at least 5 characters"),
   message: z.string().trim().min(10, "Message must be at least 10 characters"),
+});
+
+// BNPL Payment Schema
+export const BNPLPaymentInputSchema = z.object({
+  order: MongoId,
+  user: MongoId,
+  amount: Price("Amount"),
+  paymentMethod: z.string().min(1, "Payment method is required"),
+  reference: z.string().optional(),
+  status: z
+    .enum(["pending", "success", "failed", "cancelled", "reversed"])
+    .default("pending"),
+  type: z
+    .enum(["repayment", "adjustment", "waiver", "refund"])
+    .default("repayment"),
+  notes: z.string().optional(),
+  processedBy: z.string().optional(),
+  source: z.enum(["paystack", "wallet", "manual", "system"]),
+  paymentResult: z.record(z.string(), z.any()).optional(),
 });

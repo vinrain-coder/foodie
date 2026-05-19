@@ -12,11 +12,7 @@ export interface IAffiliateEarning extends Document {
 
 const affiliateEarningSchema = new Schema<IAffiliateEarning>(
   {
-    affiliate: {
-      type: Schema.Types.ObjectId,
-      ref: "Affiliate",
-      required: true,
-    },
+    affiliate: { type: Schema.Types.ObjectId, ref: "Affiliate", required: true },
     order: { type: Schema.Types.ObjectId, ref: "Order", required: true },
     amount: { type: Number, required: true },
     commissionRate: { type: Number, required: true },
@@ -28,7 +24,7 @@ const affiliateEarningSchema = new Schema<IAffiliateEarning>(
   },
   {
     timestamps: true,
-  },
+  }
 );
 
 const AffiliateEarning =

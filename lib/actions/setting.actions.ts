@@ -61,7 +61,7 @@ export async function getNoCachedSetting(): Promise<ISettingInput> {
 }
 
 export async function updateSetting(
-  newSetting: ISettingInput,
+  newSetting: ISettingInput
 ): Promise<ActionState> {
   try {
     const validated = SettingInputSchema.safeParse(newSetting);

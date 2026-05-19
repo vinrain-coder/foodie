@@ -13,11 +13,7 @@ export interface IAffiliatePayout extends Document {
 
 const affiliatePayoutSchema = new Schema<IAffiliatePayout>(
   {
-    affiliate: {
-      type: Schema.Types.ObjectId,
-      ref: "Affiliate",
-      required: true,
-    },
+    affiliate: { type: Schema.Types.ObjectId, ref: "Affiliate", required: true },
     amount: { type: Number, required: true },
     status: {
       type: String,
@@ -30,7 +26,7 @@ const affiliatePayoutSchema = new Schema<IAffiliatePayout>(
   },
   {
     timestamps: true,
-  },
+  }
 );
 
 const AffiliatePayout =

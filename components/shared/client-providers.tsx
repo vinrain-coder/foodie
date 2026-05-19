@@ -1,0 +1,44 @@
+"use client";
+
+import React from "react";
+import useCartSidebar from "@/hooks/use-cart-sidebar";
+import CartSidebar from "./cart-sidebar";
+import { ThemeProvider } from "./theme-provider";
+import AppInitializer from "./app-initializer";
+import { ClientSetting } from "@/types";
+import { Toaster } from "../ui/sonner";
+import NavigationHistoryTracker from "./navigation-history-tracker";
+import WebAnalyticsTracker from "./web-analytics-tracker";
+import SignUpPromptDialog from "./auth/signup-prompt-dialog";
+
+interface Props {
+  setting: ClientSetting;
+  children: React.ReactNode;
+}
+
+export default function ClientProviders({ setting, children }: Props) {
+  const visible = useCartSidebar();
+
+  return (
+    <AppInitializer setting={setting}>
+      <NavigationHistoryTracker />
+      <WebAnalyticsTracker />
+      <SignUpPromptDialog />
+      <ThemeProvider
+        attribute="class"
+        defaultTheme={setting.common.defaultTheme.toLocaleLowerCase()}
+      >
+        {visible ? (
+          <div className="flex min-h-screen">
+            <div className="flex-1 overflow-hidden">{children}</div>
+            <CartSidebar />
+          </div>
+        ) : (
+          <div>{children}</div>
+        )}
+
+        <Toaster duration={4000} richColors closeButton visibleToasts={3} />
+      </ThemeProvider>
+    </AppInitializer>
+  );
+}

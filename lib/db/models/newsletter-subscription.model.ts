@@ -56,12 +56,12 @@ const newsletterSubscriptionSchema = new Schema<INewsletterSubscription>(
       index: true,
     },
   },
-  { timestamps: true },
+  { timestamps: true }
 );
 
 newsletterSubscriptionSchema.index(
   { email: 1, status: 1 },
-  { unique: true, partialFilterExpression: { status: "subscribed" } },
+  { unique: true, partialFilterExpression: { status: "subscribed" } }
 );
 
 const NewsletterSubscription =
@@ -70,7 +70,7 @@ const NewsletterSubscription =
     | undefined) ||
   model<INewsletterSubscription>(
     "NewsletterSubscription",
-    newsletterSubscriptionSchema,
+    newsletterSubscriptionSchema
   );
 
 export default NewsletterSubscription;

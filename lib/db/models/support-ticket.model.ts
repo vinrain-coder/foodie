@@ -27,13 +27,7 @@ const supportTicketSchema = new Schema<ISupportTicket>(
       index: true,
     },
     name: { type: String, required: true, trim: true },
-    email: {
-      type: String,
-      required: true,
-      trim: true,
-      lowercase: true,
-      index: true,
-    },
+    email: { type: String, required: true, trim: true, lowercase: true, index: true },
     type: {
       type: String,
       enum: ["complaint", "query", "recommendation"],
@@ -53,7 +47,7 @@ const supportTicketSchema = new Schema<ISupportTicket>(
     adminRepliedAt: { type: Date },
     adminRepliedBy: { type: String, trim: true },
   },
-  { timestamps: true },
+  { timestamps: true }
 );
 
 supportTicketSchema.index({ createdAt: -1, status: 1 });

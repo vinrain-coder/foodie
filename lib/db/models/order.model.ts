@@ -38,7 +38,7 @@ export interface IOrder extends Document {
   userName?: string;
   accessToken?: string;
   items: Array<{
-    product: Types.ObjectId | string;
+    menuItem: Types.ObjectId | string;
     clientId: string;
     name: string;
     slug: string;
@@ -47,8 +47,6 @@ export interface IOrder extends Document {
     price: number;
     countInStock: number;
     quantity: number;
-    size?: string;
-    color?: string;
   }>;
   shippingAddress: {
     email?: string;
@@ -86,13 +84,7 @@ export interface IOrder extends Document {
   amountPaid: number;
   remainingAmount: number;
   bnplDueDate?: Date;
-  financingStatus?:
-    | "active"
-    | "overdue"
-    | "completed"
-    | "suspended"
-    | "defaulted"
-    | "cancelled";
+  financingStatus?: "active" | "overdue" | "completed" | "suspended" | "defaulted" | "cancelled";
   financingPlan?: string;
   minimumPayment?: number;
   lastPaymentAt?: Date;
@@ -190,9 +182,9 @@ const orderSchema = new Schema<IOrder>(
     },
     items: [
       {
-        product: {
+        menuItem: {
           type: Schema.Types.ObjectId,
-          ref: "Product",
+          ref: "MenuItem",
           required: true,
         },
         clientId: { type: String, required: true },
@@ -203,8 +195,6 @@ const orderSchema = new Schema<IOrder>(
         price: { type: Number, required: true },
         countInStock: { type: Number, required: true },
         quantity: { type: Number, required: true },
-        size: { type: String },
-        color: { type: String },
       },
     ],
     shippingAddress: {
@@ -274,14 +264,7 @@ const orderSchema = new Schema<IOrder>(
     bnplDueDate: { type: Date },
     financingStatus: {
       type: String,
-      enum: [
-        "active",
-        "overdue",
-        "completed",
-        "suspended",
-        "defaulted",
-        "cancelled",
-      ],
+      enum: ["active", "overdue", "completed", "suspended", "defaulted", "cancelled"],
       index: true,
     },
     financingPlan: { type: String },
@@ -322,7 +305,7 @@ orderSchema.index({ status: 1, updatedAt: -1 });
 orderSchema.index({ user: 1, createdAt: -1 });
 orderSchema.index({ user: 1, refundedToWallet: 1 });
 orderSchema.index({ user: 1, walletAmountRedeemed: 1 });
-orderSchema.index({ "items.product": 1 });
+orderSchema.index({ "items.menuItem": 1 });
 
 const Order =
   (models.Order as Model<IOrder> | undefined) ||

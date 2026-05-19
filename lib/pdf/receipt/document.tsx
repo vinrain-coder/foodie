@@ -1,11 +1,17 @@
-import { Document, Image, Page, Text, View } from "@react-pdf/renderer";
+import {
+  Document,
+  Image,
+  Page,
+  Text,
+  View,
+} from "@react-pdf/renderer";
 import { createReceiptStyles, getReceiptTheme } from "./styles";
 import {
   CustomerSection,
   FooterSection,
   HeaderSection,
   PricingAndPaymentSection,
-  ProductTableSection,
+  MenuItemTableSection,
 } from "./sections";
 import type {
   ReceiptBranding,
@@ -49,14 +55,14 @@ export const ReceiptPdfDocument = ({ data, options }: ReceiptDocumentProps) => {
       producer={`${branding.brandName} PDF Engine`}
       creator={`${branding.brandName} - @react-pdf/renderer`}
     >
-      <Page size={options?.pageSize || "A4"} style={styles.page} wrap>
+      <Page
+        size={options?.pageSize || "A4"}
+        style={styles.page}
+        wrap
+      >
         {branding.watermarkLogoUrl ? (
           // eslint-disable-next-line jsx-a11y/alt-text
-          <Image
-            src={branding.watermarkLogoUrl}
-            style={styles.watermark}
-            fixed
-          />
+          <Image src={branding.watermarkLogoUrl} style={styles.watermark} fixed />
         ) : (
           <Text
             style={[
@@ -97,7 +103,7 @@ export const ReceiptPdfDocument = ({ data, options }: ReceiptDocumentProps) => {
 
         <View style={{ height: 10 }} />
 
-        <ProductTableSection
+        <MenuItemTableSection
           data={data}
           branding={branding}
           styles={styles}
@@ -133,11 +139,10 @@ export const ReceiptPdfDocument = ({ data, options }: ReceiptDocumentProps) => {
 
         <View style={styles.footer} fixed>
           <Text>
-            {branding.website} • {branding.supportEmail}
+            {branding.website}  •  {branding.supportEmail}
           </Text>
           <Text>
-            {branding.legalLine ||
-              `© ${new Date().getFullYear()} ${branding.brandName}. All rights reserved.`}
+            {branding.legalLine || `© ${new Date().getFullYear()} ${branding.brandName}. All rights reserved.`}
           </Text>
         </View>
       </Page>

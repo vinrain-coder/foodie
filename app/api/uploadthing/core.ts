@@ -6,9 +6,9 @@ const f = createUploadthing();
 
 export const ourFileRouter = {
   // Product Images
-  products: f({
+  menuItems: f({
     image: {
-      maxFileSize: "1MB",
+      maxFileSize: "2MB",
       maxFileCount: 6,
     },
     video: {
@@ -59,22 +59,6 @@ export const ourFileRouter = {
 
   // logos
   logos: f({
-    image: {
-      maxFileSize: "2MB",
-      maxFileCount: 1,
-    },
-  })
-    .middleware(async () => {
-      const session = await getServerSession();
-      if (!session) throw new UploadThingError("Unauthorized");
-      return { userId: session.user.id };
-    })
-    .onUploadComplete(async ({ metadata, file }) => {
-      return { uploadedBy: metadata.userId, fileUrl: file.ufsUrl };
-    }),
-
-  // brands
-  brands: f({
     image: {
       maxFileSize: "2MB",
       maxFileCount: 1,

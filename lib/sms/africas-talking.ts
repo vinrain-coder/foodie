@@ -52,9 +52,7 @@ const postSms = async ({
 
   if (!response.ok) {
     const details = await response.text();
-    throw new Error(
-      `Africa's Talking SMS failed: ${response.status} ${details}`,
-    );
+    throw new Error(`Africa's Talking SMS failed: ${response.status} ${details}`);
   }
 
   return response.json();
@@ -99,7 +97,7 @@ export async function sendAfricasTalkingSms({
 
   if (sandboxMode) {
     console.log(
-      `[SMS][Sandbox] Would send to ${recipients.join(", ")}: ${message}`,
+      `[SMS][Sandbox] Would send to ${recipients.join(", ")}: ${message}`
     );
     return {
       success: true,

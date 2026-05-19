@@ -2,7 +2,6 @@ import {
   AddressBookEntrySchema,
   AddressBookInputSchema,
   BlogInputSchema,
-  BrandInputSchema,
   CarouselSchema,
   CartSchema,
   CategoryInputSchema,
@@ -14,7 +13,6 @@ import {
   OrderInputSchema,
   OrderItemSchema,
   PaymentMethodSchema,
-  ProductInputSchema,
   ReviewInputSchema,
   SettingInputSchema,
   ShippingAddressSchema,
@@ -27,6 +25,7 @@ import {
   UserSignInSchema,
   UserSignUpSchema,
   WebPageInputSchema,
+  MenuItemInputSchema,
 } from "@/lib/validator";
 import { z } from "zod";
 
@@ -44,11 +43,9 @@ export type IReviewDetails = IReviewInput & {
     repliedBy?: string;
   };
 };
-export type IProductInput = z.infer<typeof ProductInputSchema>;
+export type IMenuItemInput = z.infer<typeof MenuItemInputSchema>;
 
 export type ICategoryInput = z.infer<typeof CategoryInputSchema>;
-
-export type IBrandInput = z.infer<typeof BrandInputSchema>;
 
 export type ITagInput = z.infer<typeof TagInputSchema>;
 
@@ -56,9 +53,8 @@ export type Data = {
   settings: ISettingInput[];
   webPages: IWebPageInput[];
   users: IUserInput[];
-  products: IProductInput[];
+  menuItems: IMenuItemInput[];
   categories: ICategoryInput[];
-  brands: IBrandInput[];
   tags: ITagInput[];
   coupons: ICouponInput[];
   blogs: IBlogInput[];

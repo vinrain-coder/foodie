@@ -59,7 +59,7 @@ const coinTransactionSchema = new Schema<ICoinTransaction>(
   },
   {
     timestamps: true,
-  },
+  }
 );
 
 coinTransactionSchema.index({ user: 1, createdAt: -1 });

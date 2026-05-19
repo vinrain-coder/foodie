@@ -1,9 +1,8 @@
 import {
   Data,
-  IProductInput,
+  IMenuItemInput,
   IUserInput,
   ICategoryInput,
-  IBrandInput,
   ITagInput,
   ICouponInput,
   IBlogInput,
@@ -55,41 +54,6 @@ const categories: ICategoryInput[] = [
   },
 ];
 
-const brands: IBrandInput[] = [
-  {
-    name: "Nike",
-    slug: "nike",
-    description: "Global leader in athletic footwear and apparel.",
-    isFeatured: true,
-    logo: "/images/brands/nike-logo.svg",
-    image: "/images/brands/nike-banner.jpg",
-  },
-  {
-    name: "Adidas",
-    slug: "adidas",
-    description: "Innovative sports brand with a rich heritage.",
-    isFeatured: true,
-    logo: "/images/brands/adidas-logo.svg",
-    image: "/images/brands/adidas-banner.jpg",
-  },
-  {
-    name: "Jordan",
-    slug: "jordan",
-    description: "Iconic basketball brand inspired by Michael Jordan.",
-    isFeatured: true,
-    logo: "/images/brands/jordan-logo.svg",
-    image: "/images/brands/jordan-banner.jpg",
-  },
-  {
-    name: "Puma",
-    slug: "puma",
-    description: "Fast-moving sports brand focused on performance and style.",
-    isFeatured: false,
-    logo: "/images/brands/puma-logo.svg",
-    image: "/images/brands/puma-banner.jpg",
-  },
-];
-
 const tags: ITagInput[] = [
   {
     name: "New Arrival",
@@ -112,7 +76,7 @@ const tags: ITagInput[] = [
   {
     name: "Eco Friendly",
     slug: "eco-friendly",
-    description: "Products made with sustainable materials.",
+    description: "MenuItems made with sustainable materials.",
     image: "/images/tags/eco.jpg",
   },
 ];
@@ -173,7 +137,7 @@ const blogs: IBlogInput[] = [
 const users: IUserInput[] = [
   {
     name: "Admin User",
-    email: "admin@shoestar.com",
+    email: "admin@tumafood.com",
     password: bcrypt.hashSync("admin123", 10),
     role: "ADMIN",
     emailVerified: true,
@@ -211,12 +175,11 @@ const users: IUserInput[] = [
   },
 ];
 
-const products: IProductInput[] = [
+const products: IMenuItemInput[] = [
   {
     name: "Nike Air Zoom Pegasus 40",
     slug: toSlug("Nike Air Zoom Pegasus 40"),
     category: "Running Shoes",
-    brand: "Nike",
     images: [
       "/images/products/pegasus-1.jpg",
       "/images/products/pegasus-2.jpg",
@@ -224,13 +187,10 @@ const products: IProductInput[] = [
     tags: ["new-arrival", "best-seller"],
     isPublished: true,
     price: 130.0,
-    listPrice: 150.0,
     countInStock: 25,
     description:
       "The workhorse with wings returns. The Nike Air Zoom Pegasus 40 provides a responsive ride for any run.",
     shortDescription: "The most versatile running shoe for every runner.",
-    sizes: ["7", "8", "9", "10", "11", "12"],
-    colors: ["Black/White", "Blue/Volt", "Red/Crimson"],
     avgRating: 4.8,
     numReviews: 124,
     numSales: 320,
@@ -247,19 +207,15 @@ const products: IProductInput[] = [
     name: "Adidas Ultraboost Light",
     slug: toSlug("Adidas Ultraboost Light"),
     category: "Running Shoes",
-    brand: "Adidas",
     images: ["/images/products/ultraboost-1.jpg"],
     tags: ["eco-friendly"],
     isPublished: true,
     price: 190.0,
-    listPrice: 190.0,
     countInStock: 15,
     shortDescription:
       "Experience epic energy with the new Ultraboost Light, our lightest Ultraboost ever.",
     description:
       "Experience epic energy with the new Ultraboost Light, our lightest Ultraboost ever.",
-    sizes: ["8", "9", "10", "11"],
-    colors: ["Cloud White", "Core Black"],
     avgRating: 4.9,
     numReviews: 89,
     numSales: 150,
@@ -276,7 +232,6 @@ const products: IProductInput[] = [
     name: "Air Jordan 1 Retro High OG",
     slug: toSlug("Air Jordan 1 Retro High OG"),
     category: "Basketball Shoes",
-    brand: "Jordan",
     images: [
       "/images/products/jordan1-1.jpg",
       "/images/products/jordan1-2.jpg",
@@ -284,14 +239,11 @@ const products: IProductInput[] = [
     tags: ["best-seller", "limited-edition"],
     isPublished: true,
     price: 180.0,
-    listPrice: 180.0,
     countInStock: 5,
     shortDescription:
       "The sneaker that started it all. The Air Jordan 1 Retro High OG stays true to the original 1985 design.",
     description:
       "The sneaker that started it all. The Air Jordan 1 Retro High OG stays true to the original 1985 design.",
-    sizes: ["9", "10", "11"],
-    colors: ["Chicago", "Bred", "Royal"],
     avgRating: 5.0,
     numReviews: 210,
     numSales: 1200,
@@ -325,7 +277,6 @@ const data: Data = {
   users,
   products,
   categories,
-  brands,
   tags,
   coupons,
   blogs,
@@ -334,11 +285,11 @@ const data: Data = {
     {
       title: "About Us",
       slug: "about-us",
-      content: `Welcome to ShoeStar, your trusted destination for quality footwear and exceptional service. Our journey began with a mission to bring you the best shopping experience by offering a wide range of products at competitive prices, all in one convenient platform.
+      content: `Welcome to TumaFood, your trusted destination for quality footwear and exceptional service. Our journey began with a mission to bring you the best shopping experience by offering a wide range of products at competitive prices, all in one convenient platform.
 
-At ShoeStar, we prioritize customer satisfaction and innovation. Our team works tirelessly to curate a diverse selection of items, from everyday essentials to exclusive deals, ensuring there's something for everyone. We also strive to make your shopping experience seamless with fast shipping, secure payments, and excellent customer support.
+At TumaFood, we prioritize customer satisfaction and innovation. Our team works tirelessly to curate a diverse selection of items, from everyday essentials to exclusive deals, ensuring there's something for everyone. We also strive to make your shopping experience seamless with fast shipping, secure payments, and excellent customer support.
 
-As we continue to grow, our commitment to quality and service remains unwavering. Thank you for choosing ShoeStar—we look forward to being a part of your journey and delivering value every step of the way.`,
+As we continue to grow, our commitment to quality and service remains unwavering. Thank you for choosing TumaFood—we look forward to being a part of your journey and delivering value every step of the way.`,
       isPublished: true,
     },
     {
@@ -348,7 +299,7 @@ As we continue to grow, our commitment to quality and service remains unwavering
 
 **Customer Support**
 For inquiries about orders, products, or account-related issues, contact our customer support team:
-- **Email:** support@shoestar.com
+- **Email:** support@tumafood.com
 - **Phone:** +254 700 000000
 - **Live Chat:** Available on our website from 9 AM to 6 PM (Monday to Friday).
 
@@ -388,7 +339,7 @@ Your data is safeguarded through robust security measures to prevent unauthorize
     {
       title: "Conditions of Use",
       slug: "conditions-of-use",
-      content: `Welcome to ShoeStar. By accessing or using our website, you agree to comply with and be bound by the following terms and conditions. These terms govern your use of our platform, including browsing, purchasing products, and interacting with any content or services provided. You must be at least 18 years old or have the consent of a parent or guardian to use this website. Any breach of these terms may result in the termination of your access to our platform.
+      content: `Welcome to TumaFood. By accessing or using our website, you agree to comply with and be bound by the following terms and conditions. These terms govern your use of our platform, including browsing, purchasing products, and interacting with any content or services provided. You must be at least 18 years old or have the consent of a parent or guardian to use this website. Any breach of these terms may result in the termination of your access to our platform.
 
 We strive to ensure all product descriptions, pricing, and availability information on our website are accurate. However, errors may occur, and we reserve the right to correct them without prior notice. All purchases are subject to our return and refund policy. By using our site, you acknowledge that your personal information will be processed according to our privacy policy, ensuring your data is handled securely and responsibly. Please review these terms carefully before proceeding with any transactions.
 `,
@@ -397,10 +348,10 @@ We strive to ensure all product descriptions, pricing, and availability informat
     {
       title: "Customer Service",
       slug: "customer-service",
-      content: `At ShoeStar, our customer service team is here to ensure you have the best shopping experience. Whether you need assistance with orders, product details, or returns, we are committed to providing prompt and helpful support.
+      content: `At TumaFood, our customer service team is here to ensure you have the best shopping experience. Whether you need assistance with orders, product details, or returns, we are committed to providing prompt and helpful support.
 
 If you have questions or concerns, please reach out to us through our multiple contact options:
-- **Email:** support@shoestar.com
+- **Email:** support@tumafood.com
 - **Phone:** +254 700 000000
 - **Live Chat:** Available on our website for instant assistance
 
@@ -475,27 +426,27 @@ Please note that certain items, such as socks and insoles, are not eligible for 
         pageSize: 12,
       },
       site: {
-        name: "ShoeStar",
+        name: "TumaFood",
         description: "Premium Footwear Store in Kenya",
         keywords: "sneakers, shoes, kenya, nike, adidas, jordan",
-        url: "https://shoestar.com",
+        url: "https://tumafood.com",
         logo: "/icons/logo.svg",
         slogan: "Step into Excellence",
-        author: "ShoeStar Team",
-        copyright: "2024 ShoeStar Inc.",
-        email: "support@shoestar.com",
+        author: "TumaFood Team",
+        copyright: "2024 TumaFood Inc.",
+        email: "support@tumafood.com",
         address: "Nairobi, Kenya",
         phone: "+254 700 000000",
         businessHours: "Mon - Sat | 9:00 AM - 7:00 PM",
       },
       socialMedia: {
-        facebook: "https://www.facebook.com/shoestar",
-        twitter: "https://twitter.com/shoestar",
-        tiktok: "https://www.tiktok.com/@shoestar",
-        youtube: "https://www.youtube.com/@shoestar",
-        instagram: "https://www.instagram.com/shoestar",
+        facebook: "https://www.facebook.com/tumafood",
+        twitter: "https://twitter.com/tumafood",
+        tiktok: "https://www.tiktok.com/@tumafood",
+        youtube: "https://www.youtube.com/@tumafood",
+        instagram: "https://www.instagram.com/tumafood",
         whatsapp: "https://wa.me/254700000000",
-        linkedin: "https://www.linkedin.com/company/shoestar",
+        linkedin: "https://www.linkedin.com/company/tumafood",
       },
       notifications: {
         sms: {

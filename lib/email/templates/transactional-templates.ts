@@ -330,7 +330,7 @@ type TemplateOrderItem = {
   price: number;
 };
 
-type StockTemplateProduct = {
+type StockTemplateMenuItem = {
   name: string;
   slug: string;
   price: number;
@@ -371,21 +371,21 @@ type PurchaseReceiptOrderTemplate = {
  * Stock Subscription Notification Template
  */
 export function stockSubscriptionNotificationTemplate({
-  product,
+  menuItem,
   unsubscribeToken,
   siteUrl,
   siteName,
   siteCopyright,
 }: {
-  product: StockTemplateProduct;
+  menuItem: StockTemplateMenuItem;
   unsubscribeToken: string;
   siteUrl: string;
   siteName: string;
   siteCopyright: string;
 }) {
-  const escapedProductName = escapeHTML(product.name);
-  const escapedProductImage = escapeHTML(
-    product.images[0] || "https://via.placeholder.com/200",
+  const escapedMenuItemName = escapeHTML(menuItem.name);
+  const escapedMenuItemImage = escapeHTML(
+    menuItem.images[0] || "https://via.placeholder.com/200",
   );
   const escapedUnsubscribeUrl = escapeHTML(
     `${siteUrl}/unsubscribe-stock?token=${encodeURIComponent(unsubscribeToken)}`,
@@ -399,20 +399,20 @@ export function stockSubscriptionNotificationTemplate({
             It's Back in Stock! 🔔
           </h1>
           <p style="margin: 12px 0 0 0; font-size: 16px; line-height: 24px; color: ${colors.slate600};">
-            Good news! <strong>${escapedProductName}</strong> is now available for purchase.
+            Good news! <strong>${escapedMenuItemName}</strong> is now available for purchase.
           </p>
 
           <div style="margin-top: 32px;">
-            <a href="${escapeHTML(`${siteUrl}/product/${product.slug}`)}">
-              <img src="${escapedProductImage}" alt="${escapedProductName}" width="240" style="border-radius: 16px; border: 1px solid ${colors.slate100};">
+            <a href="${escapeHTML(`${siteUrl}/menu-item/${menuItem.slug}`)}">
+              <img src="${escapedMenuItemImage}" alt="${escapedMenuItemName}" width="240" style="border-radius: 16px; border: 1px solid ${colors.slate100};">
             </a>
           </div>
 
           <p style="margin: 24px 0 0 0; font-size: 24px; font-weight: 900; color: ${colors.slate950};">
-            ${formatCurrency(product.price)}
+            ${formatCurrency(menuItem.price)}
           </p>
 
-          ${button({ href: `${siteUrl}/product/${product.slug}`, label: "Shop Now", backgroundColor: colors.orange500 })}
+          ${button({ href: `${siteUrl}/menu-item/${menuItem.slug}`, label: "Shop Now", backgroundColor: colors.orange500 })}
 
           <p style="margin: 32px 0 0 0; font-size: 12px; line-height: 18px; color: ${colors.slate400};">
             You're receiving this because you asked to be notified when this item returns.
@@ -424,7 +424,7 @@ export function stockSubscriptionNotificationTemplate({
   `;
 
   return layout({
-    preview: `"${product.name}" is back in stock!`,
+    preview: `"${menuItem.name}" is back in stock!`,
     children: content,
     siteName,
     siteCopyright,
@@ -466,7 +466,7 @@ export function askReviewOrderItemsTemplate({
                     : item.image,
                 );
                 const escapedItemUrl = escapeHTML(
-                  `${site.url}/product/${item.slug}#reviews`,
+                  `${site.url}/menu-item/${item.slug}#reviews`,
                 );
 
                 return `

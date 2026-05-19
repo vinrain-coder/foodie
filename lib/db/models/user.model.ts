@@ -34,7 +34,7 @@ const userSchema = new Schema<IUser>(
     emailVerified: { type: Boolean, default: false },
     wishlist: {
       type: [Schema.Types.ObjectId],
-      ref: "Product",
+      ref: "MenuItem",
       default: [],
     },
     addresses: { type: [Schema.Types.Mixed], default: [] },

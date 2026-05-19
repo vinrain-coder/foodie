@@ -1,18 +1,19 @@
-import { betterAuth } from "better-auth";
+﻿import { betterAuth } from "better-auth";
 import { mongodbAdapter } from "better-auth/adapters/mongodb";
 import { jwt } from "better-auth/plugins";
 
-import {
-  sendAdminEventNotification,
-  sendWelcomeNewUserEmail,
-} from "@/lib/email/transactional";
 import { passwordSchema } from "./validator";
 import { getDb } from "./db/client";
+
 import {
   sendChangeEmailVerification,
   sendResetPasswordEmail,
   sendVerifyEmail,
-} from "./email/auth-email";
+} from "./email/auth-emails";
+import {
+  sendAdminEventNotification,
+  sendWelcomeNewUserEmail,
+} from "@/lib/email/transactional";
 
 const db = await getDb();
 
@@ -26,9 +27,9 @@ type SessionCreatedEvent = {
 
 export const auth = betterAuth({
   database: mongodbAdapter(db),
-
+  
   baseURL: process.env.NEXT_PUBLIC_APP_URL,
-
+  
   session: {
     cookieCache: {
       enabled: true,
@@ -264,10 +265,12 @@ export const auth = betterAuth({
     },
   },
 
-  plugins: [jwt()],
+  plugins: [
+    jwt(),
+  ],
 
   advanced: {
-    cookiePrefix: "shoestar_auth",
+    cookiePrefix: "tumafood_auth",
   },
 });
 

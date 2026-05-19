@@ -1,0 +1,122 @@
+"use client";
+
+import useSettingStore from "@/hooks/use-setting-store";
+import { cn } from "@/lib/utils";
+
+const Price = ({
+  price,
+  className,
+  listPrice = 0,
+  isDeal = false,
+  forListing = true,
+  plain = false,
+  align = "center",
+}: {
+  price: number;
+  isDeal?: boolean;
+  listPrice?: number;
+  className?: string;
+  forListing?: boolean;
+  plain?: boolean;
+  align?: "start" | "center" | "end";
+}) => {
+  const { getCurrency } = useSettingStore();
+  const currency = getCurrency();
+  const justifyClass =
+    align === "start"
+      ? "justify-start"
+      : align === "end"
+        ? "justify-end"
+        : "justify-center";
+
+  // Logic to calculate discount remains the same
+  const discountPercent = Math.round(100 - (price / listPrice) * 100);
+
+  // Formatting logic for prices using Intl.NumberFormat for commas
+  const formattedPrice = new Intl.NumberFormat().format(price);
+  const formattedListPrice = new Intl.NumberFormat().format(listPrice);
+
+  const stringValue = formattedPrice.toString();
+  const [intValue, floatValue] = stringValue.includes(".")
+    ? stringValue.split(".")
+    : [stringValue, ""];
+
+  // Replace format.number with standard Intl
+  if (plain) {
+    return (
+      <span className={cn(className)}>
+        {new Intl.NumberFormat(undefined, {
+          style: "currency",
+          currency: currency.code,
+          currencyDisplay: "narrowSymbol",
+        }).format(price)}
+      </span>
+    );
+  }
+
+  // No list price display
+  if (listPrice === 0) {
+    return (
+      <div className={cn("text-2xl sm:text-3xl", className)}>
+        <span className="text-xs align-super">{currency.symbol}</span>
+        {intValue}
+        <span className="text-xs align-super">{floatValue}</span>
+      </div>
+    );
+  }
+
+  // Deal layout
+  if (isDeal) {
+    return (
+      <div className="space-y-2">
+        <div className="flex justify-center items-center gap-2">
+          <span className="bg-red-700 rounded-sm p-1 text-white text-sm font-semibold">
+            {discountPercent}% Off
+          </span>
+          <span className="text-red-700 text-xs font-bold">
+            Limited time deal
+          </span>
+        </div>
+        <div
+          className={`flex ${forListing ? justifyClass : "justify-start"} items-center gap-2 flex-wrap`}
+        >
+          <div
+            className={cn("text-2xl sm:text-3xl wrap-break-word", className)}
+          >
+            <span className="text-xs align-super">{currency.symbol}</span>
+            {intValue}
+            <span className="text-xs align-super">{floatValue}</span>
+          </div>
+          <div className="text-muted-foreground text-xs whitespace-nowrap">
+            Was: {currency.code}.{" "}
+            <span className="line-through">{formattedListPrice}</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Standard discount layout
+  return (
+    <div className="">
+      <div className={cn("flex gap-2 flex-wrap items-center", justifyClass)}>
+        <div className="text-2xl sm:text-3xl text-orange-700 whitespace-nowrap">
+          -{discountPercent}%
+        </div>
+        <div className={cn("text-2xl sm:text-3xl wrap-break-word", className)}>
+          <span className="text-xs align-super">{currency.symbol}</span>
+          {intValue}
+          <span className="text-xs align-super">{floatValue}</span>
+        </div>
+      </div>
+      <div className="text-muted-foreground text-xs py-2 whitespace-nowrap">
+        List price:{" "}
+        <span className="line-through">
+          {currency.code} {formattedListPrice}
+        </span>
+      </div>
+    </div>
+  );
+};
+
+export default Price;

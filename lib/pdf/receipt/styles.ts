@@ -148,7 +148,7 @@ export const createReceiptStyles = (theme: ReceiptThemeTokens) =>
       width: "14%",
       paddingRight: 8,
     },
-    tableColProduct: {
+    tableColMenuItem: {
       width: "36%",
       paddingRight: 8,
     },

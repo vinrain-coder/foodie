@@ -26,7 +26,7 @@ export function isLoggedIn(user: UserSession | null): boolean {
  */
 export function canViewCoupon(
   user: UserSession | null,
-  coupon: { tier: string },
+  coupon: { tier: string }
 ) {
   if (coupon.tier === "premium") {
     return isPremiumOrAdmin(user);
@@ -41,14 +41,11 @@ export function canViewCoupon(
  */
 export function canUseCoupon(
   user: UserSession | null,
-  coupon: { tier: string },
+  coupon: { tier: string }
 ) {
   // Premium coupons require premium status
   if (coupon.tier === "premium" && !isPremiumOrAdmin(user)) {
-    return {
-      allowed: false,
-      reason: "This coupon is for premium members only.",
-    };
+    return { allowed: false, reason: "This coupon is for premium members only." };
   }
 
   // All coupons require the user to be logged in to actually use them
@@ -67,7 +64,7 @@ export function canUseCoupon(
  */
 export function getCouponDisplayMode(
   user: UserSession | null,
-  coupon: { tier: string },
+  coupon: { tier: string }
 ): "full" | "locked" | "preview" {
   if (coupon.tier === "premium") {
     if (isPremiumOrAdmin(user)) return "full";

@@ -1,0 +1,219 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { connectToDatabase } from "../db";
+import { getServerSession } from "../get-session";
+import {
+  flattenZodErrors,
+  formatError,
+  normalizeDateRange,
+  escapeRegExp,
+} from "../utils";
+import SupportTicket from "../db/models/support-ticket.model";
+import { SupportTicketInputSchema } from "../validator";
+import { ActionState } from "@/types/action-state";
+import { z } from "zod";
+import {
+  sendAdminEventNotification,
+  sendSupportTicketReplyEmail,
+} from "@/lib/email/transactional";
+
+type SupportTicketDto = {
+  _id: string;
+  name: string;
+  email: string;
+  type: "complaint" | "query" | "recommendation";
+  subject: string;
+  message: string;
+  status: "open" | "replied";
+  adminReply?: string;
+  createdAt: string;
+};
+
+
+export async function createSupportTicket(
+  input: z.infer<typeof SupportTicketInputSchema>
+): Promise<ActionState> {
+  try {
+    const session = await getServerSession();
+    await connectToDatabase();
+
+    const validated = SupportTicketInputSchema.safeParse(input);
+    if (!validated.success) {
+      return {
+        success: false,
+        message: "Validation failed",
+        errors: flattenZodErrors(validated.error),
+      };
+    }
+    const payload = {
+      ...validated.data,
+      user: session?.user?.id,
+    };
+
+    const ticket = await SupportTicket.create(payload);
+
+    await sendAdminEventNotification({
+      title: `New support ${payload.type}`,
+      description: `${payload.name} (${payload.email}) submitted: ${payload.subject}`,
+      href: "/admin/support",
+      meta: "Support inbox",
+      createdAt: ticket.createdAt.toISOString(),
+    });
+
+    revalidatePath("/account/support");
+    revalidatePath("/admin/support");
+
+    return { success: true, message: "Support request submitted successfully." };
+  } catch (error) {
+    return { success: false, message: formatError(error) };
+  }
+}
+
+export async function getMySupportTickets() {
+  try {
+    const session = await getServerSession();
+    if (!session?.user) throw new Error("User is not authenticated");
+
+    await connectToDatabase();
+
+    const tickets = await SupportTicket.find({
+      $or: [{ user: session.user.id }, { email: session.user.email }],
+    })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return { success: true, data: JSON.parse(JSON.stringify(tickets)) as SupportTicketDto[] };
+  } catch (error) {
+    return { success: false, message: formatError(error), data: [] as SupportTicketDto[] };
+  }
+}
+
+export async function getSupportTicketsAdmin({
+  page = 1,
+  limit = 10,
+  query = "",
+  status = "all",
+  from,
+  to,
+}: {
+  page?: number;
+  limit?: number;
+  query?: string;
+  status?: string;
+  from?: string;
+  to?: string;
+} = {}) {
+  try {
+    const session = await getServerSession();
+    if (!session || session.user.role !== "ADMIN") {
+      throw new Error("Admin permission required");
+    }
+
+    await connectToDatabase();
+
+    const filter: {
+      status?: string;
+      $or?: Array<Record<string, unknown>>;
+      createdAt?: {
+        $gte?: Date;
+        $lte?: Date;
+      };
+    } = {};
+    if (status !== "all") {
+      filter.status = status;
+    }
+    if (query) {
+      const escapedQuery = escapeRegExp(query);
+      filter.$or = [
+        { name: { $regex: escapedQuery, $options: "i" } },
+        { email: { $regex: escapedQuery, $options: "i" } },
+        { subject: { $regex: escapedQuery, $options: "i" } },
+        { message: { $regex: escapedQuery, $options: "i" } },
+      ];
+    }
+    const { fromDate, toDate } = normalizeDateRange(from, to);
+    if (fromDate || toDate) {
+      filter.createdAt = {};
+      if (fromDate) filter.createdAt.$gte = fromDate;
+      if (toDate) filter.createdAt.$lte = toDate;
+    }
+
+    const skip = (page - 1) * limit;
+    const [tickets, totalTickets] = await Promise.all([
+      SupportTicket.find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      SupportTicket.countDocuments(filter),
+    ]);
+
+    return {
+      success: true,
+      data: JSON.parse(JSON.stringify(tickets)) as SupportTicketDto[],
+      totalPages: Math.ceil(totalTickets / limit),
+      totalTickets,
+    };
+  } catch (error) {
+    return { success: false, message: formatError(error), data: [] as SupportTicketDto[], totalPages: 0, totalTickets: 0 };
+  }
+}
+
+export async function getSupportStats() {
+  const session = await getServerSession();
+  if (session?.user.role !== "ADMIN") {
+    throw new Error("Admin permission required");
+  }
+
+  await connectToDatabase();
+  const [totalTickets, openTickets, repliedTickets] = await Promise.all([
+    SupportTicket.countDocuments(),
+    SupportTicket.countDocuments({ status: "open" }),
+    SupportTicket.countDocuments({ status: "replied" }),
+  ]);
+
+  return {
+    totalTickets,
+    openTickets,
+    repliedTickets,
+  };
+}
+
+export async function replySupportTicket(input: { id: string; reply: string }) {
+  try {
+    const session = await getServerSession();
+    if (!session || session.user.role !== "ADMIN") {
+      throw new Error("Admin permission required");
+    }
+
+    const reply = input.reply.trim();
+    if (!reply) throw new Error("Reply is required");
+
+    await connectToDatabase();
+
+    const ticket = await SupportTicket.findById(input.id);
+    if (!ticket) throw new Error("Support ticket not found");
+
+    ticket.adminReply = reply;
+    ticket.status = "replied";
+    ticket.adminRepliedAt = new Date();
+    ticket.adminRepliedBy = session.user.name || session.user.email;
+    await ticket.save();
+
+    await sendSupportTicketReplyEmail({
+      to: ticket.email,
+      customerName: ticket.name,
+      subject: ticket.subject,
+      originalMessage: ticket.message,
+      replyMessage: reply,
+    });
+
+    revalidatePath("/admin/support");
+    revalidatePath("/account/support");
+
+    return { success: true, message: "Reply sent to customer email successfully." };
+  } catch (error) {
+    return { success: false, message: formatError(error) };
+  }
+}

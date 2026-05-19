@@ -7,13 +7,7 @@ export interface IWalletTransaction extends Document {
   order?: Types.ObjectId;
   amount: number;
   reason: string;
-  source:
-    | "admin_adjustment"
-    | "refund"
-    | "wallet_payment"
-    | "deposit"
-    | "payout"
-    | "affiliate_transfer";
+  source: "admin_adjustment" | "refund" | "wallet_payment" | "deposit" | "payout" | "affiliate_transfer";
   balanceBefore: number;
   balanceAfter: number;
   externalReference?: string;
@@ -77,7 +71,7 @@ const walletTransactionSchema = new Schema<IWalletTransaction>(
   },
   {
     timestamps: true,
-  },
+  }
 );
 
 walletTransactionSchema.index({ user: 1, createdAt: -1 });

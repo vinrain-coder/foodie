@@ -23,7 +23,7 @@ const firstPurchaseClaimSchema = new Schema<IFirstPurchaseClaim>(
   },
   {
     timestamps: true,
-  },
+  }
 );
 
 const FirstPurchaseClaim =

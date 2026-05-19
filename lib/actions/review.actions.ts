@@ -1,0 +1,468 @@
+"use server";
+
+import mongoose, { type FilterQuery } from "mongoose";
+import { cacheTag, revalidatePath, updateTag } from "next/cache";
+import { z } from "zod";
+import { connectToDatabase } from "../db";
+import MenuItem from "../db/models/menu.item.model";
+import User from "../db/models/user.model";
+import Review, { IReview } from "../db/models/review.model";
+import { formatError, escapeRegExp, flattenZodErrors } from "../utils";
+import { ReviewInputSchema } from "../validator";
+import { IReviewDetails } from "@/types";
+import { ActionState } from "@/types/action-state";
+import { getSetting } from "./setting.actions";
+import { getServerSession } from "../get-session";
+import { cacheLife } from "next/cache";
+import { sendAdminEventNotification } from "@/lib/email/transactional";
+
+function normalizeReviewImages(input: { image?: string; images?: string[] }) {
+  const fromImages = (input.images || []).filter(Boolean).slice(0, 2);
+  const legacyImage = input.image?.trim();
+  if (fromImages.length > 0) return fromImages;
+  return legacyImage ? [legacyImage] : [];
+}
+
+export async function submitReviewAction(
+  values: Omit<z.infer<typeof ReviewInputSchema>, "user">,
+  path: string,
+): Promise<ActionState> {
+  try {
+    const session = await getServerSession();
+    if (!session) throw new Error("Not authenticated");
+
+    const validated = ReviewInputSchema.safeParse({
+      ...values,
+      user: session.user.id,
+    });
+    if (!validated.success) {
+      return {
+        success: false,
+        message: "Validation failed",
+        errors: flattenZodErrors(validated.error),
+      };
+    }
+    const data = validated.data;
+
+    await connectToDatabase();
+
+    const existing = await Review.findOne({
+      menuItem: data.menuItem,
+      user: data.user,
+    });
+
+    if (existing) {
+      existing.title = data.title;
+      existing.comment = data.comment;
+      existing.rating = data.rating;
+      const normalizedImages = normalizeReviewImages(data);
+      existing.images = normalizedImages;
+      existing.image = normalizedImages[0] || "";
+      await existing.save();
+    } else {
+      const normalizedImages = normalizeReviewImages(data);
+      const createdReview = await Review.create(data);
+      createdReview.images = normalizedImages;
+      createdReview.image = normalizedImages[0] || "";
+      await createdReview.save();
+      const [reviewUser, reviewMenuItem] = await Promise.all([
+        User.findById(createdReview.user).select("name email").lean(),
+        MenuItem.findById(createdReview.menuItem).select("name").lean(),
+      ]);
+
+      await sendAdminEventNotification({
+        title: "New menu item review",
+        description: `${reviewUser?.name || "Customer"} rated ${reviewMenuItem?.name || "a menuItem"} ${createdReview.rating}/5${createdReview.title ? ` — ${createdReview.title}` : ""}.`,
+        href: "/admin/reviews",
+        meta: createdReview.isVerifiedPurchase
+          ? "Verified purchase"
+          : "Customer feedback",
+        createdAt: createdReview.createdAt.toISOString(),
+      });
+    }
+
+    await updateMenuItemReview(data.menuItem);
+    revalidatePath(path);
+
+    return { success: true, message: "Review saved" };
+  } catch (err) {
+    return { success: false, message: formatError(err) };
+  }
+}
+
+async function updateMenuItemReview(menuItemId: string) {
+  const stats = await Review.aggregate([
+    { $match: { menuItem: new mongoose.Types.ObjectId(menuItemId) } },
+    {
+      $group: {
+        _id: "$rating",
+        count: { $sum: 1 },
+      },
+    },
+  ]);
+
+  const total = stats.reduce((a, b) => a + b.count, 0);
+  const avg =
+    total === 0 ? 0 : stats.reduce((a, b) => a + b._id * b.count, 0) / total;
+
+  const distribution = Array.from({ length: 5 }, (_, i) => ({
+    rating: i + 1,
+    count: stats.find((s) => s._id === i + 1)?.count || 0,
+  }));
+
+  await MenuItem.findByIdAndUpdate(menuItemId, {
+    avgRating: avg.toFixed(1),
+    numReviews: total,
+    ratingDistribution: distribution,
+  });
+}
+
+export async function createUpdateReview({
+  data,
+  path,
+}: {
+  data: z.infer<typeof ReviewInputSchema>;
+  path: string;
+}): Promise<ActionState> {
+  try {
+    const session = await getServerSession();
+    if (!session) {
+      throw new Error("User is not authenticated");
+    }
+
+    const validated = ReviewInputSchema.safeParse({
+      ...data,
+      user: session?.user?.id,
+    });
+    if (!validated.success) {
+      return {
+        success: false,
+        message: "Validation failed",
+        errors: flattenZodErrors(validated.error),
+      };
+    }
+    const review = validated.data;
+
+    await connectToDatabase();
+    const existReview = await Review.findOne({
+      menuItem: review.menuItem,
+      user: review.user,
+    });
+
+    if (existReview) {
+      existReview.comment = review.comment;
+      existReview.rating = review.rating;
+      existReview.title = review.title;
+      const normalizedImages = normalizeReviewImages(review);
+      existReview.images = normalizedImages;
+      existReview.image = normalizedImages[0] || "";
+      await existReview.save();
+      await updateMenuItemReview(review.menuItem);
+      revalidatePath(path);
+      return {
+        success: true,
+        message: "Review updated successfully",
+        // data: JSON.parse(JSON.stringify(existReview)),
+      };
+    } else {
+      const normalizedImages = normalizeReviewImages(review);
+      const createdReview = await Review.create(review);
+      createdReview.images = normalizedImages;
+      createdReview.image = normalizedImages[0] || "";
+      await createdReview.save();
+      const [reviewUser, reviewMenuItem] = await Promise.all([
+        User.findById(createdReview.user).select("name email").lean(),
+        MenuItem.findById(createdReview.menuItem).select("name").lean(),
+      ]);
+      await sendAdminEventNotification({
+        title: "New menu item review",
+        description: `${reviewUser?.name || "Customer"} rated ${reviewMenuItem?.name || "a menu item"} ${createdReview.rating}/5${createdReview.title ? ` — ${createdReview.title}` : ""}.`,
+        href: "/admin/reviews",
+        meta: createdReview.isVerifiedPurchase
+          ? "Verified purchase"
+          : "Customer feedback",
+        createdAt: createdReview.createdAt.toISOString(),
+      });
+      await updateMenuItemReview(review.menuItem);
+      revalidatePath(path);
+      return {
+        success: true,
+        message: "Review created successfully",
+        // data: JSON.parse(JSON.stringify(newReview)),
+      };
+    }
+  } catch (error) {
+    return {
+      success: false,
+      message: formatError(error),
+    };
+  }
+}
+
+export async function getReviews({
+  menuItemId,
+  limit,
+  page,
+}: {
+  menuItemId: string;
+  limit?: number;
+  page: number;
+}) {
+  const {
+    common: { pageSize },
+  } = await getSetting();
+  limit = limit || pageSize;
+  await connectToDatabase();
+  const skipAmount = (page - 1) * limit;
+  const reviews = await Review.find({ menuItem: menuItemId })
+    .populate("user", "name")
+    .sort({
+      createdAt: "desc",
+    })
+    .skip(skipAmount)
+    .limit(limit);
+  const reviewsCount = await Review.countDocuments({ menuItem: menuItemId });
+  return {
+    data: JSON.parse(JSON.stringify(reviews)) as IReviewDetails[],
+    totalPages: reviewsCount === 0 ? 1 : Math.ceil(reviewsCount / limit),
+  };
+}
+export const getReviewByMenuItemId = async ({
+  menuItemId,
+}: {
+  menuItemId: string;
+}) => {
+  "use cache";
+  cacheLife("hours");
+  cacheTag("reviews");
+  await connectToDatabase();
+  const session = await getServerSession();
+  if (!session) {
+    throw new Error("User is not authenticated");
+  }
+  const review = await Review.findOne({
+    menuItem: menuItemId,
+    user: session?.user?.id,
+  });
+  return review ? (JSON.parse(JSON.stringify(review)) as IReview) : null;
+};
+
+// get all reviews (admin panel)
+export async function getAllReviews({
+  page = 1,
+  limit = 10,
+  query = "",
+  rating = "all",
+  from,
+  to,
+}: {
+  page?: number;
+  limit?: number;
+  query?: string;
+  rating?: string;
+  from?: string;
+  to?: string;
+}) {
+  await connectToDatabase();
+
+  const filter: FilterQuery<IReview> = {};
+
+  if (rating !== "all") {
+    const ratingValue = parseInt(rating, 10);
+    if (Number.isInteger(ratingValue) && ratingValue >= 1 && ratingValue <= 5) {
+      filter.rating = ratingValue;
+    }
+  }
+
+  if (from || to) {
+    const fromDate = from ? new Date(from) : null;
+    const toDate = to ? new Date(to) : null;
+    if (
+      (fromDate && !isNaN(fromDate.getTime())) ||
+      (toDate && !isNaN(toDate.getTime()))
+    ) {
+      filter.createdAt = {};
+      if (fromDate && !isNaN(fromDate.getTime()))
+        filter.createdAt.$gte = fromDate;
+      if (toDate && !isNaN(toDate.getTime())) filter.createdAt.$lte = toDate;
+    }
+  }
+
+  if (query) {
+    const escapedQuery = escapeRegExp(query);
+    filter.$or = [
+      { title: { $regex: escapedQuery, $options: "i" } },
+      { comment: { $regex: escapedQuery, $options: "i" } },
+    ];
+  }
+
+  const skip = (page - 1) * limit;
+
+  const total = await Review.countDocuments(filter);
+
+  const reviews = await Review.find(filter)
+    .populate("user", "name email role")
+    .populate("menuItem", "name slug images")
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limit)
+    .lean();
+
+  return {
+    data: JSON.parse(JSON.stringify(reviews)),
+    total,
+    totalPages: Math.ceil(total / limit),
+  };
+}
+
+export async function getReviewStats() {
+  await connectToDatabase();
+
+  const [totalReviews, avgRatingResult, verifiedPurchases, pendingReplies] =
+    await Promise.all([
+      Review.countDocuments(),
+      Review.aggregate([
+        { $group: { _id: null, avgRating: { $avg: "$rating" } } },
+      ]),
+      Review.countDocuments({ isVerifiedPurchase: true }),
+      Review.countDocuments({ "adminReply.message": { $exists: false } }),
+    ]);
+
+  return {
+    totalReviews,
+    avgRating: avgRatingResult[0]?.avgRating?.toFixed(1) || 0,
+    verifiedPurchases,
+    pendingReplies,
+  };
+}
+
+export async function replyToReview({
+  id,
+  message,
+}: {
+  id: string;
+  message: string;
+}) {
+  try {
+    const session = await getServerSession();
+    if (!session || session.user.role !== "ADMIN") {
+      throw new Error("Admin permission required");
+    }
+
+    const trimmedMessage = message.trim();
+    if (!trimmedMessage) {
+      throw new Error("Reply message is required");
+    }
+
+    await connectToDatabase();
+    const existingReview = await Review.findById(id).select("menuItem").lean();
+    const review = await Review.findByIdAndUpdate(
+      id,
+      {
+        adminReply: {
+          message: trimmedMessage,
+          repliedAt: new Date(),
+          repliedBy: session.user.name || session.user.email,
+        },
+      },
+      { new: true },
+    );
+
+    if (!review) {
+      throw new Error("Review not found");
+    }
+
+    const menuItem = existingReview?.menuItem
+      ? await MenuItem.findById(existingReview.menuItem).select("slug").lean()
+      : null;
+
+    updateTag("reviews");
+    revalidatePath("/admin/reviews");
+    if (menuItem?.slug) {
+      revalidatePath(`/menu-item/${menuItem.slug}`);
+    }
+
+    return { success: true, message: "Reply saved successfully" };
+  } catch (error) {
+    return {
+      success: false,
+      message: formatError(error),
+    };
+  }
+}
+
+export async function deleteReview(id: string) {
+  try {
+    const session = await getServerSession();
+    if (!session) throw new Error("Not authenticated");
+
+    await connectToDatabase();
+    const review = await Review.findById(id).select("menuItem user").lean();
+    if (!review) throw new Error("Review not found");
+
+    const isAdmin = session.user.role === "ADMIN";
+    const isOwner = review.user && review.user.toString() === session.user.id;
+
+    if (!isAdmin && !isOwner) {
+      throw new Error("Not authorized to delete this review");
+    }
+
+    await Review.findByIdAndDelete(id);
+    await updateMenuItemReview(review.menuItem.toString());
+
+    const menuItem = await MenuItem.findById(review.menuItem)
+      .select("slug")
+      .lean();
+
+    updateTag("reviews");
+    revalidatePath("/admin/reviews");
+    if (menuItem?.slug) {
+      revalidatePath(`/menu-item/${menuItem.slug}`);
+    }
+
+    return {
+      success: true,
+      message: "Review deleted successfully",
+    };
+  } catch (error) {
+    console.error("Failed to delete review:", error);
+    return {
+      success: false,
+      message: formatError(error),
+    };
+  }
+}
+
+export async function getMyReviews() {
+  try {
+    const session = await getServerSession();
+    if (!session) throw new Error("Not authenticated");
+
+    await connectToDatabase();
+
+    const reviews = await Review.find({ user: session.user.id })
+      .populate("menuItem", "name slug images")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return {
+      success: true,
+      data: JSON.parse(JSON.stringify(reviews)) as Array<
+        IReviewDetails & {
+          menuItem: {
+            _id: string;
+            name: string;
+            slug: string;
+            images?: string[];
+          };
+        }
+      >,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: formatError(error),
+      data: [] as Array<IReviewDetails>,
+    };
+  }
+}

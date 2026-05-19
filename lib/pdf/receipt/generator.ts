@@ -15,8 +15,7 @@ import type {
   ReceiptExportMeta,
 } from "./types";
 
-const sanitizeOrderId = (orderId: string) =>
-  orderId.replace(/[^a-zA-Z0-9-_]/g, "");
+const sanitizeOrderId = (orderId: string) => orderId.replace(/[^a-zA-Z0-9-_]/g, "");
 
 export const buildReceiptFileName = (
   kind: ReceiptDocumentKind,

@@ -151,15 +151,7 @@ export function layout({
   `;
 }
 
-export function button({
-  href,
-  label,
-  backgroundColor = colors.slate950,
-}: {
-  href: string;
-  label: string;
-  backgroundColor?: string;
-}) {
+export function button({ href, label, backgroundColor = colors.slate950 }: { href: string; label: string; backgroundColor?: string }) {
   const escapedHref = escapeHTML(href);
   const escapedLabel = escapeHTML(label);
   const escapedBgColor = escapeHTML(backgroundColor);
@@ -200,33 +192,17 @@ export function socialLinks() {
   };
 
   const platforms = [
-    {
-      name: "Facebook",
-      icon: "https://cdn-icons-png.flaticon.com/512/733/733547.png",
-      url: links.facebook,
-    },
-    {
-      name: "Instagram",
-      icon: "https://cdn-icons-png.flaticon.com/512/2111/2111463.png",
-      url: links.instagram,
-    },
-    {
-      name: "Twitter",
-      icon: "https://cdn-icons-png.flaticon.com/512/3256/3256013.png",
-      url: links.twitter,
-    },
-    {
-      name: "Tiktok",
-      icon: "https://cdn-icons-png.flaticon.com/512/3046/3046121.png",
-      url: links.tiktok,
-    },
+    { name: "Facebook", icon: "https://cdn-icons-png.flaticon.com/512/733/733547.png", url: links.facebook },
+    { name: "Instagram", icon: "https://cdn-icons-png.flaticon.com/512/2111/2111463.png", url: links.instagram },
+    { name: "Twitter", icon: "https://cdn-icons-png.flaticon.com/512/3256/3256013.png", url: links.twitter },
+    { name: "Tiktok", icon: "https://cdn-icons-png.flaticon.com/512/3046/3046121.png", url: links.tiktok },
   ];
 
   return `
     <table border="0" cellspacing="0" cellpadding="0" style="margin: 0 auto;">
       <tr>
         ${platforms
-          .filter((p) => p.url !== "#")
+          .filter(p => p.url !== "#")
           .map(
             (p) => `
           <td style="padding: 0 10px;">

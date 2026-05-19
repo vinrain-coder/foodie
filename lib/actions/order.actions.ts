@@ -25,7 +25,7 @@ import {
   sendPurchaseReceipt,
 } from "@/lib/email/transactional";
 import { DateRange } from "react-day-picker";
-import Product from "../db/models/product.model";
+import MenuItem from "../db/models/menu.item.model";
 import User from "../db/models/user.model";
 import Review from "../db/models/review.model";
 import NewsletterSubscription from "../db/models/newsletter-subscription.model";
@@ -513,7 +513,7 @@ const revertOrderEffects = async (
     }
   }
 
-  // 2. Restore product stock if it was previously adjusted and not yet reverted
+  // 2. Restore menuItem stock if it was previously adjusted and not yet reverted
   if (order.stockAdjusted && !order.stockReverted) {
     const updatedOrderForStock = await Order.findOneAndUpdate(
       { _id: order._id, stockAdjusted: true, stockReverted: { $ne: true } },
@@ -523,8 +523,8 @@ const revertOrderEffects = async (
 
     if (updatedOrderForStock) {
       for (const item of updatedOrderForStock.items) {
-        await Product.updateOne(
-          { _id: item.product },
+        await MenuItem.updateOne(
+          { _id: item.menuItem },
           [
             {
               $set: {
@@ -1109,21 +1109,21 @@ export const createOrderFromCart = async (
 
   if (isPaid && session) {
     for (const item of createdOrder.items) {
-      const product = await Product.findById(item.product).session(session);
+      const menuItem = await MenuItem.findById(item.menuItem).session(session);
 
-      if (!product) {
-        throw new Error(`Product not found: ${item.product}`);
+      if (!menuItem) {
+        throw new Error(`MenuItem not found: ${item.menuItem}`);
       }
 
-      if (product.countInStock < item.quantity) {
+      if (menuItem.countInStock < item.quantity) {
         throw new Error(
-          `Insufficient stock available for ${product.name}. Available: ${product.countInStock}, Required: ${item.quantity}`,
+          `Insufficient stock available for ${menuItem.name}. Available: ${menuItem.countInStock}, Required: ${item.quantity}`,
         );
       }
 
-      const result = await Product.updateOne(
+      const result = await MenuItem.updateOne(
         {
-          _id: item.product,
+          _id: item.menuItem,
           countInStock: { $gte: item.quantity },
         },
         {
@@ -1137,7 +1137,7 @@ export const createOrderFromCart = async (
 
       if (result.modifiedCount === 0) {
         throw new Error(
-          `Insufficient stock available for ${product.name}. Available: ${product.countInStock}, Required: ${item.quantity}`,
+          `Insufficient stock available for ${menuItem.name}. Available: ${menuItem.countInStock}, Required: ${item.quantity}`,
         );
       }
     }
@@ -1187,7 +1187,7 @@ export const runPostPaymentSideEffects = async (orderId: string) => {
     console.error("Non-critical: Failed to credit earned coins:", coinsError);
   }
 
-  // 2. Update product stock
+  // 2. Update menuItem stock
   try {
     const updatedOrderForStock = await Order.findOneAndUpdate(
       { _id: order._id, stockAdjusted: { $ne: true } },
@@ -1196,10 +1196,10 @@ export const runPostPaymentSideEffects = async (orderId: string) => {
     );
     if (updatedOrderForStock) {
       order.stockAdjusted = updatedOrderForStock.stockAdjusted;
-      await updateProductStock(updatedOrderForStock._id.toString());
+      await updateMenuItemStock(updatedOrderForStock._id.toString());
     }
   } catch (stockError) {
-    console.error("Critical: Failed to update product stock:", stockError);
+    console.error("Critical: Failed to update menu item stock:", stockError);
     throw stockError;
   }
 
@@ -1318,7 +1318,7 @@ export async function updateOrderToPaid(orderId: string) {
   }
 }
 
-const updateProductStock = async (
+const updateMenuItemStock = async (
   orderId: string,
   session?: mongoose.ClientSession,
 ) => {
@@ -1327,23 +1327,23 @@ const updateProductStock = async (
     if (!order) throw new Error("Order not found");
 
     for (const item of order.items) {
-      const product = await Product.findById(item.product)
+      const menuItem = await MenuItem.findById(item.menuItem)
         .session(session || null)
         .exec();
 
-      if (!product) {
-        throw new Error(`Product not found: ${item.product}`);
+      if (!menuItem) {
+        throw new Error(`MenuItem not found: ${item.menuItem}`);
       }
 
-      if (product.countInStock < item.quantity) {
+      if (menuItem.countInStock < item.quantity) {
         throw new Error(
-          `Insufficient stock available for ${product.name}. Available: ${product.countInStock}, Required: ${item.quantity}`,
+          `Insufficient stock available for ${menuItem.name}. Available: ${menuItem.countInStock}, Required: ${item.quantity}`,
         );
       }
 
-      const result = await Product.updateOne(
+      const result = await MenuItem.updateOne(
         {
-          _id: item.product,
+          _id: item.menuItem,
           countInStock: { $gte: item.quantity },
         },
         {
@@ -1357,13 +1357,13 @@ const updateProductStock = async (
 
       if (result.modifiedCount === 0) {
         throw new Error(
-          `Insufficient stock available for ${product.name}. Available: ${product.countInStock}, Required: ${item.quantity}`,
+          `Insufficient stock available for ${menuItem.name}. Available: ${menuItem.countInStock}, Required: ${item.quantity}`,
         );
       }
     }
     return true;
   } catch (error) {
-    console.error("Failed to update product stock:", error);
+    console.error("Failed to update menu item stock:", error);
     throw error;
   }
 };
@@ -1465,7 +1465,7 @@ export async function initiateExchange(orderId: string) {
     appendTrackingHistory(order, {
       status: "returned",
       message:
-        "Admin initiated an exchange for a different product. User will pay for delivery costs.",
+        "Admin initiated an exchange for a different menu item. User will pay for delivery costs.",
       source: "admin",
     });
 
@@ -1977,14 +1977,14 @@ export async function getOrderSummary(date: DateRange) {
 
   const [
     ordersCount,
-    productsCount,
+    menuItemsCount,
     usersCount,
     reviewsCount,
     newslettersCount,
     ticketsCount,
   ] = await Promise.all([
     Order.countDocuments(query),
-    Product.countDocuments(query),
+    MenuItem.countDocuments(query),
     User.countDocuments(query),
     Review.countDocuments(query),
     NewsletterSubscription.countDocuments({
@@ -2047,7 +2047,7 @@ export async function getOrderSummary(date: DateRange) {
     { $sort: { label: 1 } },
   ]);
   const topSalesCategories = await getTopSalesCategories(date);
-  const topSalesProducts = await getTopSalesProducts(date);
+  const topSalesMenuItems = await getTopSalesMenuItems(date);
 
   const {
     common: { pageSize },
@@ -2062,7 +2062,7 @@ export async function getOrderSummary(date: DateRange) {
     .sort({ createdAt: "desc" })
     .limit(5)
     .populate("user", "name")
-    .populate("product", "name");
+    .populate("menuItem", "name");
 
   const latestSubscribers = await NewsletterSubscription.find()
     .sort({ subscribedAt: "desc" })
@@ -2071,7 +2071,7 @@ export async function getOrderSummary(date: DateRange) {
 
   return {
     ordersCount,
-    productsCount,
+    menuItemsCount,
     usersCount,
     reviewsCount,
     newslettersCount,
@@ -2084,7 +2084,7 @@ export async function getOrderSummary(date: DateRange) {
     monthlySales: JSON.parse(JSON.stringify(monthlySales)),
     salesChartData: JSON.parse(JSON.stringify(await getSalesChartData(date))),
     topSalesCategories: JSON.parse(JSON.stringify(topSalesCategories)),
-    topSalesProducts: JSON.parse(JSON.stringify(topSalesProducts)),
+    topSalesMenuItems: JSON.parse(JSON.stringify(topSalesMenuItems)),
     latestOrders: JSON.parse(JSON.stringify(latestOrders)) as IOrderList[],
     latestReviews: JSON.parse(JSON.stringify(latestReviews)),
     latestSubscribers: JSON.parse(JSON.stringify(latestSubscribers)),
@@ -2134,7 +2134,7 @@ async function getSalesChartData(date: DateRange) {
   return result;
 }
 
-async function getTopSalesProducts(date: DateRange) {
+async function getTopSalesMenuItems(date: DateRange) {
   "use cache";
   cacheLife("hours");
   const result = await Order.aggregate([
@@ -2149,13 +2149,13 @@ async function getTopSalesProducts(date: DateRange) {
     // Step 1: Unwind orderItems array
     { $unwind: "$items" },
 
-    // Step 2: Group by productId to calculate total sales per product
+    // Step 2: Group by menuItemId to calculate total sales per menuItem
     {
       $group: {
         _id: {
           name: "$items.name",
           image: "$items.image",
-          _id: "$items.product",
+          _id: "$items.menuItem",
         },
         totalSales: {
           $sum: { $multiply: ["$items.quantity", "$items.price"] },
@@ -2169,7 +2169,7 @@ async function getTopSalesProducts(date: DateRange) {
     },
     { $limit: 6 },
 
-    // Step 3: Replace productInfo array with product name and format the output
+    // Step 3: Replace menuItemInfo array with menuItem name and format the output
     {
       $project: {
         _id: 0,
@@ -2201,7 +2201,7 @@ async function getTopSalesCategories(date: DateRange, limit = 5) {
     },
     // Step 1: Unwind orderItems array
     { $unwind: "$items" },
-    // Step 2: Group by productId to calculate total sales per product
+    // Step 2: Group by menuItemId to calculate total sales per menuItem
     {
       $group: {
         _id: "$items.category",
@@ -2210,7 +2210,7 @@ async function getTopSalesCategories(date: DateRange, limit = 5) {
     },
     // Step 3: Sort by totalSales in descending order
     { $sort: { totalSales: -1 } },
-    // Step 4: Limit to top N products
+    // Step 4: Limit to top N menuItems
     { $limit: limit },
   ]);
 

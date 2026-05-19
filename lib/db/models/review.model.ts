@@ -2,10 +2,10 @@ import { IReviewInput } from "@/types";
 import { Document, Model, Schema, Types, model, models } from "mongoose";
 
 export interface IReview
-  extends Document, Omit<IReviewInput, "user" | "product"> {
+  extends Document, Omit<IReviewInput, "user" | "menuItem"> {
   _id: Types.ObjectId;
   user: Types.ObjectId | string;
-  product: Types.ObjectId | string;
+  menuItem: Types.ObjectId | string;
   rating: number;
   comment: string;
   title: string;
@@ -31,9 +31,9 @@ const reviewSchema = new Schema<IReview>(
       required: true,
       default: false,
     },
-    product: {
+    menuItem: {
       type: Schema.Types.ObjectId,
-      ref: "Product",
+      ref: "MenuItem",
     },
     rating: {
       type: Number,
