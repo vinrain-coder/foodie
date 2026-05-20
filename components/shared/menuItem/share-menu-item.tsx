@@ -23,7 +23,7 @@ function ShareMenuItem({ slug, name }: { slug: string; name: string }) {
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      setMenuItemUrl(`${window.location.origin}/menuItem/${slug}`);
+      setMenuItemUrl(`${window.location.origin}/menu-item/${slug}`);
     }
   }, [slug]);
 

@@ -146,7 +146,7 @@ function ReviewFormFields({
             <FieldLabel>Comment</FieldLabel>
 
             <Textarea
-              placeholder="Share your experience with this menu item..."
+              placeholder="Share your experience with this menuItem..."
               className="min-h-16 resize-none"
               aria-invalid={fieldState.invalid}
               {...field}
@@ -234,7 +234,7 @@ export default function ReviewList({
     try {
       const res = await submitReviewAction(
         { ...values, menuItem: menuItem._id.toString() },
-        `/menu-item/${menuItem.slug}`,
+        `/menuu-item/${menuItem.slug}`,
       );
 
       if (!res.success) {

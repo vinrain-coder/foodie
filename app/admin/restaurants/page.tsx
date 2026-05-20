@@ -13,17 +13,20 @@ export default async function RestaurantsAdminPage({
   searchParams: Promise<{
     page?: string;
     status?: string;
+    activity?: string;
     query?: string;
     from?: string;
     to?: string;
   }>;
 }) {
-  const { page = "1", status = "all", query, from, to } = await searchParams;
+  const { page = "1", status = "all", activity = "all", query, from, to } =
+    await searchParams;
 
   const [applicationsData, statsData] = await Promise.all([
     getAllRestaurantApplications({
       page: Number(page),
       status: status as "all" | "pending" | "approved" | "rejected",
+      activity: activity as "all" | "active" | "inactive",
       query,
       from,
       to,
@@ -54,6 +57,8 @@ export default async function RestaurantsAdminPage({
     approved: 0,
     pending: 0,
     rejected: 0,
+    active: 0,
+    inactive: 0,
   };
   const applications = applicationsData.data ?? [];
   const totalPages = applicationsData.totalPages ?? 1;
@@ -68,7 +73,7 @@ export default async function RestaurantsAdminPage({
             Manage Restaurants
           </h1>
           <p className="text-muted-foreground">
-            Review restaurant applications and approve or reject onboarding
+            Review, approve, suspend, and fully edit restaurant profiles
           </p>
         </div>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -80,6 +85,7 @@ export default async function RestaurantsAdminPage({
       <RestaurantApplicationStatusCards
         stats={stats}
         currentStatus={status}
+        currentActivity={activity}
       />
 
       <RestaurantApplicationsList

@@ -7,7 +7,7 @@ import { redirect } from "next/navigation";
 import { SiteHeader } from "./site-header";
 import type { Metadata } from "next";
 import { PRIVATE_ROBOTS } from "@/lib/seo";
-import { isRestaurantRole } from "@/lib/dashboard-access";
+import { canAccessRestaurantDashboard } from "@/lib/dashboard-access";
 import { getStaffScope } from "@/lib/staff-scope";
 
 export const metadata: Metadata = {
@@ -26,15 +26,12 @@ export default async function RestaurantAdminLayout({
     redirect(toSignInPath("/restaurant-admin"));
   }
 
-  if (!isRestaurantRole(session.user.role)) {
+  if (!canAccessRestaurantDashboard(session.user.role)) {
     redirect("/forbidden");
   }
 
   try {
-    const scope = await getStaffScope();
-    if (scope.role !== "RESTAURANT") {
-      redirect("/forbidden");
-    }
+    await getStaffScope();
   } catch {
     redirect("/restaurant/register");
   }

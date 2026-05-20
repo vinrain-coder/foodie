@@ -232,30 +232,6 @@ export function DashboardSkeleton() {
   );
 }
 
-export function CompareSkeleton() {
-  return (
-    <div className="space-y-6" role="status" aria-label="Loading">
-      <Skeleton className="h-10 w-64" aria-hidden="true" />
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        <Card>
-          <CardContent className="p-6 space-y-4">
-            <Skeleton className="aspect-square w-full" aria-hidden="true" />
-            <Skeleton className="h-6 w-2/3" aria-hidden="true" />
-            <Skeleton className="h-4 w-1/3" aria-hidden="true" />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6 space-y-4">
-            <Skeleton className="aspect-square w-full" aria-hidden="true" />
-            <Skeleton className="h-6 w-2/3" aria-hidden="true" />
-            <Skeleton className="h-4 w-1/3" aria-hidden="true" />
-          </CardContent>
-        </Card>
-      </div>
-    </div>
-  );
-}
-
 export function MaintenanceSkeleton() {
   return (
     <div
@@ -309,73 +285,91 @@ export function SupportFormSkeleton() {
 }
 
 export function CouponGridSkeleton({ count = 6 }: { count?: number }) {
-   return (
-     <div
-       className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
-       role="status"
-       aria-label="Loading coupons"
-     >
-       {Array.from({ length: count }).map((_, i) => (
-         <Card key={i} className="overflow-hidden">
-           {/* Shimmer overlay */}
-           <div className="absolute inset-0 bg-gradient-to-br from-amber-50/20 to-transparent opacity-50" aria-hidden="true" />
+  return (
+    <div
+      className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+      role="status"
+      aria-label="Loading coupons"
+    >
+      {Array.from({ length: count }).map((_, i) => (
+        <Card key={i} className="overflow-hidden">
+          {/* Shimmer overlay */}
+          <div
+            className="absolute inset-0 bg-gradient-to-br from-amber-50/20 to-transparent opacity-50"
+            aria-hidden="true"
+          />
 
-           <CardHeader className="relative pb-4 pt-5">
-             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-               <div className="flex-1 space-y-3">
-                 <div className="flex items-start gap-3">
-                   <Skeleton className="h-11 w-11 rounded-2xl shrink-0" aria-hidden="true" />
-                   <div className="space-y-2">
-                     <div className="flex items-center gap-2">
-                       <Skeleton className="h-8 w-20" aria-hidden="true" />
-                       <Skeleton className="h-4 w-16" aria-hidden="true" />
-                     </div>
-                     <Skeleton className="h-3 w-40" aria-hidden="true" />
-                   </div>
-                 </div>
-                 <div className="flex items-center gap-3">
-                   <Skeleton className="h-10 w-40 rounded-2xl" aria-hidden="true" />
-                   <Skeleton className="h-9 w-9 rounded-lg" aria-hidden="true" />
-                 </div>
-               </div>
-               <div className="flex gap-2">
-                 <Skeleton className="h-6 w-20 rounded-full" aria-hidden="true" />
-                 <Skeleton className="h-6 w-20 rounded-full" aria-hidden="true" />
-               </div>
-             </div>
-           </CardHeader>
+          <CardHeader className="relative pb-4 pt-5">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex-1 space-y-3">
+                <div className="flex items-start gap-3">
+                  <Skeleton
+                    className="h-11 w-11 rounded-2xl shrink-0"
+                    aria-hidden="true"
+                  />
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Skeleton className="h-8 w-20" aria-hidden="true" />
+                      <Skeleton className="h-4 w-16" aria-hidden="true" />
+                    </div>
+                    <Skeleton className="h-3 w-40" aria-hidden="true" />
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Skeleton
+                    className="h-10 w-40 rounded-2xl"
+                    aria-hidden="true"
+                  />
+                  <Skeleton className="h-9 w-9 rounded-lg" aria-hidden="true" />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Skeleton
+                  className="h-6 w-20 rounded-full"
+                  aria-hidden="true"
+                />
+                <Skeleton
+                  className="h-6 w-20 rounded-full"
+                  aria-hidden="true"
+                />
+              </div>
+            </div>
+          </CardHeader>
 
-           <CardContent className="relative space-y-3">
-             <div className="grid gap-2.5 rounded-2xl border bg-muted/30 p-4 text-sm">
-               <div className="flex items-center justify-between gap-4">
-                 <Skeleton className="h-4 w-24" aria-hidden="true" />
-                 <Skeleton className="h-4 w-16" aria-hidden="true" />
-               </div>
-               <div className="flex items-center justify-between gap-4">
-                 <Skeleton className="h-4 w-16" aria-hidden="true" />
-                 <Skeleton className="h-4 w-20" aria-hidden="true" />
-               </div>
-               <div className="flex items-center justify-between gap-4">
-                 <Skeleton className="h-4 w-16" aria-hidden="true" />
-                 <Skeleton className="h-4 w-20" aria-hidden="true" />
-               </div>
-             </div>
+          <CardContent className="relative space-y-3">
+            <div className="grid gap-2.5 rounded-2xl border bg-muted/30 p-4 text-sm">
+              <div className="flex items-center justify-between gap-4">
+                <Skeleton className="h-4 w-24" aria-hidden="true" />
+                <Skeleton className="h-4 w-16" aria-hidden="true" />
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <Skeleton className="h-4 w-16" aria-hidden="true" />
+                <Skeleton className="h-4 w-20" aria-hidden="true" />
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <Skeleton className="h-4 w-16" aria-hidden="true" />
+                <Skeleton className="h-4 w-20" aria-hidden="true" />
+              </div>
+            </div>
 
-             <div className="space-y-1.5">
-               <div className="flex items-center justify-between text-xs">
-                 <Skeleton className="h-3 w-10" aria-hidden="true" />
-                 <Skeleton className="h-3 w-14" aria-hidden="true" />
-               </div>
-               <Skeleton className="h-2.5 w-full rounded-full" aria-hidden="true" />
-             </div>
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-xs">
+                <Skeleton className="h-3 w-10" aria-hidden="true" />
+                <Skeleton className="h-3 w-14" aria-hidden="true" />
+              </div>
+              <Skeleton
+                className="h-2.5 w-full rounded-full"
+                aria-hidden="true"
+              />
+            </div>
 
-             <Skeleton className="h-10 w-full rounded-2xl" aria-hidden="true" />
-           </CardContent>
-         </Card>
-       ))}
-     </div>
-   );
- }
+            <Skeleton className="h-10 w-full rounded-2xl" aria-hidden="true" />
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
 
 export function CartAddItemSkeleton() {
   return (
@@ -456,9 +450,18 @@ export function CatalogResultsSkeleton() {
               <div key={i} className="space-y-3">
                 <Skeleton className="h-4 w-20" aria-hidden="true" />
                 <div className="flex flex-wrap gap-2">
-                  <Skeleton className="h-8 w-16 rounded-full" aria-hidden="true" />
-                  <Skeleton className="h-8 w-20 rounded-full" aria-hidden="true" />
-                  <Skeleton className="h-8 w-14 rounded-full" aria-hidden="true" />
+                  <Skeleton
+                    className="h-8 w-16 rounded-full"
+                    aria-hidden="true"
+                  />
+                  <Skeleton
+                    className="h-8 w-20 rounded-full"
+                    aria-hidden="true"
+                  />
+                  <Skeleton
+                    className="h-8 w-14 rounded-full"
+                    aria-hidden="true"
+                  />
                 </div>
               </div>
             ))}
@@ -508,9 +511,18 @@ export function SearchResultsSkeleton() {
               <div key={i} className="space-y-3">
                 <Skeleton className="h-4 w-20" aria-hidden="true" />
                 <div className="flex flex-wrap gap-2">
-                  <Skeleton className="h-8 w-16 rounded-full" aria-hidden="true" />
-                  <Skeleton className="h-8 w-20 rounded-full" aria-hidden="true" />
-                  <Skeleton className="h-8 w-14 rounded-full" aria-hidden="true" />
+                  <Skeleton
+                    className="h-8 w-16 rounded-full"
+                    aria-hidden="true"
+                  />
+                  <Skeleton
+                    className="h-8 w-20 rounded-full"
+                    aria-hidden="true"
+                  />
+                  <Skeleton
+                    className="h-8 w-14 rounded-full"
+                    aria-hidden="true"
+                  />
                 </div>
               </div>
             ))}

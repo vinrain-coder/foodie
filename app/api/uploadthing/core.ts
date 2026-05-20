@@ -5,10 +5,10 @@ import { getServerSession } from "@/lib/get-session";
 const f = createUploadthing();
 
 export const ourFileRouter = {
-  // Product Images
+  // menu Images
   menuItems: f({
     image: {
-      maxFileSize: "2MB",
+      maxFileSize: "4MB",
       maxFileCount: 6,
     },
     video: {

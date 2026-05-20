@@ -25,11 +25,10 @@ export default async function AdminLayout({
     redirect(toSignInPath("/admin"));
   }
 
-  if (isRestaurantRole(session.user.role)) {
-    redirect("/restaurant-admin/overview");
-  }
-
   if (!isAdminRole(session.user.role)) {
+    if (isRestaurantRole(session.user.role)) {
+      redirect("/restaurant-admin/overview");
+    }
     redirect("/forbidden");
   }
 

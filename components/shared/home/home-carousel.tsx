@@ -188,7 +188,7 @@ export function HomeCarousel({ items }: { items: ICarousel[] }) {
                 className="max-w-xl"
               >
                 <p className="mb-3 hidden text-xs font-semibold uppercase tracking-[0.25em] text-white/70 sm:block">
-                  Featured Collection
+                  Featured Restaurants & Offers
                 </p>
 
                 <h2 className="text-balance text-3xl font-black leading-[0.95] tracking-tight text-white drop-shadow-lg sm:text-4xl md:text-5xl lg:text-6xl">
@@ -205,7 +205,7 @@ export function HomeCarousel({ items }: { items: ICarousel[] }) {
                   </Button>
 
                   <span className="hidden text-sm font-medium text-white/70 sm:inline">
-                    Swipe, tap banner, or use arrows
+                    Discover menus, offers, and partner spotlights
                   </span>
                 </div>
               </motion.div>

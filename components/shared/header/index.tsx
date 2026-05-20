@@ -6,7 +6,6 @@ import Search from "./search";
 import Sidebar from "./sidebar";
 import { getSetting } from "@/lib/actions/setting.actions";
 import NavbarWishlist from "./nav-wishlist";
-import NavbarCompare from "./nav-compare";
 import HeaderMenuBar from "./header-menu-bar";
 import HeaderMenuStrip from "./header-menu-strip";
 import MobileSearchToggle from "./mobile-search-toggle";
@@ -49,7 +48,6 @@ export default async function Header() {
 
           <div className="ml-auto flex items-center gap-0 sm:gap-1.5">
             <MobileSearchToggle categories={categories} siteName={site.name} />
-            <NavbarCompare />
             <NavbarWishlist />
             <Menu />
           </div>

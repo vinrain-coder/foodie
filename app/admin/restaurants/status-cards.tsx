@@ -21,25 +21,34 @@ interface RestaurantApplicationStatusCardsProps {
     approved: number;
     pending: number;
     rejected: number;
+    active: number;
+    inactive: number;
   };
   currentStatus?: string;
+  currentActivity?: string;
 }
 
 export default function RestaurantApplicationStatusCards({
   stats,
   currentStatus = "all",
+  currentActivity = "all",
 }: RestaurantApplicationStatusCardsProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const [isVisible, setIsVisible] = useState(true);
 
-  const handleStatusClick = (status: string) => {
+  const handleStatusClick = (target: string) => {
     const params = new URLSearchParams(searchParams.toString());
-    if (status === "all") {
+    if (target === "all") {
       params.delete("status");
+      params.delete("activity");
+    } else if (target === "active" || target === "inactive") {
+      params.delete("status");
+      params.set("activity", target);
     } else {
-      params.set("status", status);
+      params.delete("activity");
+      params.set("status", target);
     }
     params.set("page", "1");
     router.push(`${pathname}?${params.toString()}`, {
@@ -80,6 +89,22 @@ export default function RestaurantApplicationStatusCards({
       color:
         "bg-rose-100 text-rose-600 dark:bg-rose-900/20 dark:text-rose-400",
     },
+    {
+      id: "active",
+      label: "Active",
+      value: stats.active,
+      icon: CheckCircle2,
+      color:
+        "bg-teal-100 text-teal-600 dark:bg-teal-900/20 dark:text-teal-400",
+    },
+    {
+      id: "inactive",
+      label: "Suspended",
+      value: stats.inactive,
+      icon: AlertCircle,
+      color:
+        "bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300",
+    },
   ];
 
   return (
@@ -108,9 +133,12 @@ export default function RestaurantApplicationStatusCards({
       </div>
 
       {isVisible && (
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
           {statConfig.map((stat) => {
-            const isActive = currentStatus === stat.id;
+            const isActive =
+              stat.id === "active" || stat.id === "inactive"
+                ? currentActivity === stat.id
+                : currentActivity === "all" && currentStatus === stat.id;
             const Icon = stat.icon;
 
             return (

@@ -19,6 +19,7 @@ import { sendAdminEventNotification } from "../email/transactional";
 import { getSetting } from "./setting.actions";
 import MenuItem from "../db/models/menu.item.model";
 import mongoose from "mongoose";
+import { isAdminRole, isRestaurantRole } from "../dashboard-access";
 
 type RestaurantApplicationSnapshot = {
   name: string;
@@ -57,6 +58,20 @@ export type StorefrontRestaurantCard = {
   menuItemsCount: number;
 };
 
+export type MenuItemRestaurantSummary = {
+  _id: string;
+  name: string;
+  slug: string;
+  logo: string;
+  location: string;
+  phone: string;
+  whatsapp: string;
+  openingHours: string;
+  acceptsDelivery: boolean;
+  acceptsPickup: boolean;
+  averagePrepTimeMinutes: number;
+};
+
 export type RestaurantApplicationStatusResponse =
   | {
       exists: false;
@@ -81,7 +96,8 @@ export async function registerRestaurantApplication(
     await connectToDatabase();
     const session = await getServerSession();
     if (!session) throw new Error("User not authenticated");
-    if (session.user.role !== "RESTAURANT") throw new Error("Unauthorized");
+    if (!isRestaurantRole(session.user.role) && !isAdminRole(session.user.role))
+      throw new Error("Unauthorized");
 
     const validated = RestaurantApplicationInputSchema.safeParse(data);
     if (!validated.success) {
@@ -230,6 +246,7 @@ export async function getAllRestaurantApplications({
   page = 1,
   limit = 20,
   status,
+  activity = "all",
   query,
   from,
   to,
@@ -237,6 +254,7 @@ export async function getAllRestaurantApplications({
   page?: number;
   limit?: number;
   status?: "all" | RestaurantApplicationStatus;
+  activity?: "all" | "active" | "inactive";
   query?: string;
   from?: string;
   to?: string;
@@ -244,12 +262,22 @@ export async function getAllRestaurantApplications({
   try {
     await connectToDatabase();
     const session = await getServerSession();
-    if (session?.user?.role !== "ADMIN") throw new Error("Unauthorized");
+    if (!isAdminRole(session?.user?.role)) throw new Error("Unauthorized");
 
     const filter: Record<string, any> = {};
 
     if (status && status !== "all") {
       filter.status = status;
+    }
+
+    if (activity === "active") {
+      filter.status = "approved";
+      filter.isApproved = true;
+      filter.isActive = true;
+    } else if (activity === "inactive") {
+      filter.status = "approved";
+      filter.isApproved = true;
+      filter.isActive = false;
     }
 
     if (from || to) {
@@ -322,7 +350,7 @@ export async function getRestaurantApplicationAdminStats({
   try {
     await connectToDatabase();
     const session = await getServerSession();
-    if (session?.user?.role !== "ADMIN") throw new Error("Unauthorized");
+    if (!isAdminRole(session?.user?.role)) throw new Error("Unauthorized");
 
     const filter: Record<string, any> = {};
 
@@ -336,11 +364,24 @@ export async function getRestaurantApplicationAdminStats({
       }
     }
 
-    const [total, approved, pending, rejected] = await Promise.all([
+    const [total, approved, pending, rejected, active, inactive] =
+      await Promise.all([
       Restaurant.countDocuments(filter),
       Restaurant.countDocuments({ ...filter, status: "approved" }),
       Restaurant.countDocuments({ ...filter, status: "pending" }),
       Restaurant.countDocuments({ ...filter, status: "rejected" }),
+      Restaurant.countDocuments({
+        ...filter,
+        status: "approved",
+        isApproved: true,
+        isActive: true,
+      }),
+      Restaurant.countDocuments({
+        ...filter,
+        status: "approved",
+        isApproved: true,
+        isActive: false,
+      }),
     ]);
 
     return {
@@ -350,6 +391,8 @@ export async function getRestaurantApplicationAdminStats({
         approved,
         pending,
         rejected,
+        active,
+        inactive,
       },
     };
   } catch (error) {
@@ -365,7 +408,7 @@ export async function updateRestaurantApplicationStatus(
   try {
     await connectToDatabase();
     const session = await getServerSession();
-    if (session?.user?.role !== "ADMIN") throw new Error("Unauthorized");
+    if (!isAdminRole(session?.user?.role)) throw new Error("Unauthorized");
 
     const update: Record<string, any> = { status };
 
@@ -390,6 +433,11 @@ export async function updateRestaurantApplicationStatus(
       update.adminNote = adminNote.trim();
     }
 
+    const current = await Restaurant.findById(id).select("slug");
+    if (!current) throw new Error("Restaurant application not found");
+
+    const previousSlug = current.slug;
+
     const updated = await Restaurant.findByIdAndUpdate(id, update, {
       new: true,
     }).populate("ownerId", "name email");
@@ -405,12 +453,64 @@ export async function updateRestaurantApplicationStatus(
     }
 
     revalidatePath("/admin/restaurants");
+    revalidatePath(`/admin/restaurants/${id}`);
     revalidatePath("/restaurant/register");
+    revalidatePath("/restaurant-admin");
+    revalidatePath("/restaurants");
+    revalidatePath(`/restaurants/${updated.slug}`);
+    if (previousSlug !== updated.slug) {
+      revalidatePath(`/restaurants/${previousSlug}`);
+    }
 
     return {
       success: true,
       message: `Restaurant application ${status}`,
       data: JSON.parse(JSON.stringify(updated)),
+    };
+  } catch (error) {
+    return { success: false, message: formatError(error) };
+  }
+}
+
+export async function updateRestaurantActivationStatus(
+  id: string,
+  isActive: boolean,
+  adminNote?: string,
+) {
+  try {
+    await connectToDatabase();
+    const session = await getServerSession();
+    if (!isAdminRole(session?.user?.role)) throw new Error("Unauthorized");
+
+    const restaurant = await Restaurant.findById(id);
+    if (!restaurant) throw new Error("Restaurant application not found");
+
+    if (!restaurant.isApproved || restaurant.status !== "approved") {
+      throw new Error(
+        "Only approved restaurants can be activated or suspended.",
+      );
+    }
+
+    restaurant.isActive = isActive;
+    if (adminNote?.trim()) {
+      restaurant.adminNote = adminNote.trim();
+    }
+
+    await restaurant.save();
+
+    revalidatePath("/admin/restaurants");
+    revalidatePath(`/admin/restaurants/${restaurant._id.toString()}`);
+    revalidatePath("/restaurant/register");
+    revalidatePath("/restaurant-admin");
+    revalidatePath("/restaurants");
+    revalidatePath(`/restaurants/${restaurant.slug}`);
+
+    return {
+      success: true,
+      message: isActive
+        ? "Restaurant activated successfully"
+        : "Restaurant suspended successfully",
+      data: JSON.parse(JSON.stringify(restaurant)),
     };
   } catch (error) {
     return { success: false, message: formatError(error) };
@@ -605,6 +705,43 @@ export async function getRestaurantBySlugForStorefront(slug: string) {
   };
 }
 
+export async function getRestaurantSummaryForMenuItem(
+  restaurantId: string,
+): Promise<MenuItemRestaurantSummary | null> {
+  await connectToDatabase();
+
+  if (!mongoose.Types.ObjectId.isValid(restaurantId)) {
+    return null;
+  }
+
+  const restaurant = await Restaurant.findOne({
+    _id: new mongoose.Types.ObjectId(restaurantId),
+    status: "approved",
+    isApproved: true,
+    isActive: true,
+  })
+    .select(
+      "name slug logo location phone whatsapp openingHours acceptsDelivery acceptsPickup averagePrepTimeMinutes",
+    )
+    .lean();
+
+  if (!restaurant) return null;
+
+  return {
+    _id: restaurant._id.toString(),
+    name: restaurant.name,
+    slug: restaurant.slug,
+    logo: restaurant.logo || "",
+    location: restaurant.location,
+    phone: restaurant.phone,
+    whatsapp: restaurant.whatsapp,
+    openingHours: restaurant.openingHours,
+    acceptsDelivery: restaurant.acceptsDelivery,
+    acceptsPickup: restaurant.acceptsPickup,
+    averagePrepTimeMinutes: Number(restaurant.averagePrepTimeMinutes || 30),
+  };
+}
+
 export async function getRestaurantSettingsForOwner(): Promise<{
   success: boolean;
   data?: RestaurantSettingsInput;
@@ -614,17 +751,14 @@ export async function getRestaurantSettingsForOwner(): Promise<{
     await connectToDatabase();
     const session = await getServerSession();
     if (!session) throw new Error("User not authenticated");
-    if (session.user.role !== "RESTAURANT") throw new Error("Unauthorized");
+    if (!isRestaurantRole(session.user.role)) throw new Error("Unauthorized");
 
     const restaurant = await Restaurant.findOne({
       ownerId: session.user.id,
-      status: "approved",
-      isApproved: true,
-      isActive: true,
     }).lean();
 
     if (!restaurant) {
-      throw new Error("Restaurant profile not found or inactive");
+      throw new Error("Restaurant profile not found");
     }
 
     return {
@@ -662,6 +796,7 @@ export async function updateRestaurantSettingsForOwner(
     await connectToDatabase();
     const session = await getServerSession();
     if (!session) throw new Error("User not authenticated");
+    if (!isRestaurantRole(session.user.role)) throw new Error("Unauthorized");
 
     const validated = RestaurantApplicationInputSchema.safeParse(input);
     if (!validated.success) {
@@ -679,14 +814,170 @@ export async function updateRestaurantSettingsForOwner(
 
     const restaurant = await Restaurant.findOne({
       ownerId: session.user.id,
-      status: "approved",
-      isApproved: true,
-      isActive: true,
     });
 
     if (!restaurant) {
-      throw new Error("Restaurant profile not found or inactive");
+      throw new Error("Restaurant profile not found");
     }
+
+    const conflictingSlug = await Restaurant.findOne({
+      slug: payload.slug,
+      _id: { $ne: restaurant._id },
+    })
+      .select("_id")
+      .lean();
+
+    if (conflictingSlug) {
+      throw new Error("Restaurant slug is already taken");
+    }
+
+    restaurant.set({
+      name: payload.name,
+      slug: payload.slug,
+      logo: payload.logo,
+      coverImage: payload.coverImage,
+      phone: payload.phone,
+      whatsapp: payload.whatsapp,
+      location: payload.location,
+      description: payload.description,
+      openingHours: payload.openingHours,
+      deliveryFee: payload.deliveryFee,
+      minimumOrderAmount: payload.minimumOrderAmount,
+      email: payload.email,
+      cuisineTypes: payload.cuisineTypes,
+      acceptsDelivery: payload.acceptsDelivery,
+      acceptsPickup: payload.acceptsPickup,
+      averagePrepTimeMinutes: payload.averagePrepTimeMinutes,
+      ...(restaurant.status !== "approved"
+        ? {
+            status: "pending",
+            isApproved: false,
+            isActive: false,
+          }
+        : {}),
+    });
+
+    await restaurant.save();
+
+    revalidatePath("/restaurant-admin/settings");
+    revalidatePath("/restaurant-admin/overview");
+    revalidatePath("/restaurant-admin/menu-items");
+    revalidatePath("/restaurant/register");
+    revalidatePath("/restaurants");
+    revalidatePath(`/restaurants/${restaurant.slug}`);
+
+    return {
+      success: true,
+      message: "Restaurant settings updated successfully",
+      data: JSON.parse(JSON.stringify(restaurant)),
+    };
+  } catch (error) {
+    return { success: false, message: formatError(error) };
+  }
+}
+
+export async function getRestaurantSettingsByIdForAdmin(
+  restaurantId: string,
+): Promise<{
+  success: boolean;
+  data?: RestaurantSettingsInput & {
+    _id: string;
+    ownerId: string;
+    ownerName: string;
+    ownerEmail: string;
+    status: RestaurantApplicationStatus;
+    isApproved: boolean;
+    isActive: boolean;
+    adminNote: string;
+  };
+  message?: string;
+}> {
+  try {
+    await connectToDatabase();
+    const session = await getServerSession();
+    if (!isAdminRole(session?.user?.role)) throw new Error("Unauthorized");
+    if (!mongoose.Types.ObjectId.isValid(restaurantId)) {
+      throw new Error("Invalid restaurant id");
+    }
+
+    const restaurant = await Restaurant.findById(restaurantId)
+      .populate("ownerId", "name email")
+      .lean();
+
+    if (!restaurant) {
+      throw new Error("Restaurant profile not found");
+    }
+
+    const owner =
+      typeof restaurant.ownerId === "object" && restaurant.ownerId !== null
+        ? (restaurant.ownerId as { _id?: unknown; name?: string; email?: string })
+        : null;
+
+    return {
+      success: true,
+      data: {
+        _id: restaurant._id.toString(),
+        ownerId: owner?._id ? String(owner._id) : "",
+        ownerName: owner?.name || "Unknown owner",
+        ownerEmail: owner?.email || "",
+        status: restaurant.status,
+        isApproved: !!restaurant.isApproved,
+        isActive: !!restaurant.isActive,
+        adminNote: restaurant.adminNote || "",
+        name: restaurant.name,
+        slug: restaurant.slug,
+        logo: restaurant.logo || "",
+        coverImage: restaurant.coverImage || "",
+        phone: restaurant.phone,
+        whatsapp: restaurant.whatsapp,
+        location: restaurant.location,
+        description: restaurant.description,
+        openingHours: restaurant.openingHours,
+        deliveryFee: Number(restaurant.deliveryFee || 0),
+        minimumOrderAmount: Number(restaurant.minimumOrderAmount || 0),
+        email: restaurant.email || "",
+        cuisineTypes: restaurant.cuisineTypes || [],
+        acceptsDelivery: restaurant.acceptsDelivery,
+        acceptsPickup: restaurant.acceptsPickup,
+        averagePrepTimeMinutes: Number(
+          restaurant.averagePrepTimeMinutes || 30,
+        ),
+      },
+    };
+  } catch (error) {
+    return { success: false, message: formatError(error) };
+  }
+}
+
+export async function updateRestaurantSettingsByAdmin(
+  restaurantId: string,
+  input: unknown,
+): Promise<ActionState> {
+  try {
+    await connectToDatabase();
+    const session = await getServerSession();
+    if (!isAdminRole(session?.user?.role)) throw new Error("Unauthorized");
+    if (!mongoose.Types.ObjectId.isValid(restaurantId)) {
+      throw new Error("Invalid restaurant id");
+    }
+
+    const validated = RestaurantApplicationInputSchema.safeParse(input);
+    if (!validated.success) {
+      return {
+        success: false,
+        message: "Validation failed",
+        errors: flattenZodErrors(validated.error),
+      };
+    }
+
+    const payload = {
+      ...validated.data,
+      slug: toSlug(validated.data.slug),
+    };
+
+    const restaurant = await Restaurant.findById(restaurantId);
+    if (!restaurant) throw new Error("Restaurant profile not found");
+    const oldSlug = restaurant.slug;
 
     const conflictingSlug = await Restaurant.findOne({
       slug: payload.slug,
@@ -720,14 +1011,21 @@ export async function updateRestaurantSettingsForOwner(
 
     await restaurant.save();
 
+    revalidatePath("/admin/restaurants");
+    revalidatePath(`/admin/restaurants/${restaurant._id.toString()}`);
     revalidatePath("/restaurant-admin/settings");
     revalidatePath("/restaurant-admin/overview");
     revalidatePath("/restaurant-admin/menu-items");
     revalidatePath("/restaurant/register");
+    revalidatePath("/restaurants");
+    revalidatePath(`/restaurants/${restaurant.slug}`);
+    if (oldSlug !== restaurant.slug) {
+      revalidatePath(`/restaurants/${oldSlug}`);
+    }
 
     return {
       success: true,
-      message: "Restaurant settings updated successfully",
+      message: "Restaurant profile updated successfully",
       data: JSON.parse(JSON.stringify(restaurant)),
     };
   } catch (error) {

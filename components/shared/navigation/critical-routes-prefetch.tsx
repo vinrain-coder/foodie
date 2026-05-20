@@ -3,7 +3,16 @@
 import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
-const CRITICAL_ROUTES = ["/search", "/restaurants", "/cart", "/checkout", "/account/wishlist", "/compare", "/account", "/affiliate/dashboard", "/affiliate/payouts"];
+const CRITICAL_ROUTES = [
+  "/search",
+  "/restaurants",
+  "/cart",
+  "/checkout",
+  "/account/wishlist",
+  "/account",
+  "/affiliate/dashboard",
+  "/affiliate/payouts",
+];
 
 export default function CriticalRoutesPrefetch() {
   const router = useRouter();

@@ -13,12 +13,18 @@ export type StaffScope =
       userId: string;
       userName: string;
       restaurantId: null;
+      restaurantStatus: null;
+      restaurantApproved: null;
+      restaurantActive: null;
     }
   | {
       role: "RESTAURANT";
       userId: string;
       userName: string;
       restaurantId: string;
+      restaurantStatus: "pending" | "approved" | "rejected";
+      restaurantApproved: boolean;
+      restaurantActive: boolean;
     };
 
 export async function getStaffScope(): Promise<StaffScope> {
@@ -39,6 +45,9 @@ export async function getStaffScope(): Promise<StaffScope> {
       userId: session.user.id,
       userName: session.user.name || session.user.email || "Admin",
       restaurantId: null,
+      restaurantStatus: null,
+      restaurantApproved: null,
+      restaurantActive: null,
     };
   }
 
@@ -48,17 +57,12 @@ export async function getStaffScope(): Promise<StaffScope> {
 
   const restaurant = await Restaurant.findOne({
     ownerId: session.user.id,
-    status: "approved",
-    isApproved: true,
-    isActive: true,
   })
-    .select("_id")
+    .select("_id status isApproved isActive")
     .lean();
 
   if (!restaurant?._id) {
-    throw new Error(
-      "Restaurant account is not active. Please complete and get approval for your restaurant profile.",
-    );
+    throw new Error("Restaurant profile not found.");
   }
 
   return {
@@ -66,5 +70,8 @@ export async function getStaffScope(): Promise<StaffScope> {
     userId: session.user.id,
     userName: session.user.name || session.user.email || "Restaurant",
     restaurantId: restaurant._id.toString(),
+    restaurantStatus: restaurant.status,
+    restaurantApproved: !!restaurant.isApproved,
+    restaurantActive: !!restaurant.isActive,
   };
 }

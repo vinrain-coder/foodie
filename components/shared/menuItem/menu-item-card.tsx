@@ -20,7 +20,6 @@ import { cn, formatNumber } from "@/lib/utils";
 import Rating from "./rating";
 import ImageHover from "./image-hover";
 import WishlistIcon from "./wishlist-icon";
-import CompareIcon from "./compare-icon";
 import CardAddToCartSelector from "./card-add-to-cart-selector";
 import SubscribeButton from "./stock-subscription-button";
 import Price from "./price";
@@ -214,7 +213,6 @@ const MenuItemImageSub = memo(function MenuItemImageSub({
               <Eye className="h-4 w-4" />
             </button>
           )}
-          <CompareIcon menuItem={menuItem} variant="icon" />
         </div>
       )}
 
@@ -431,7 +429,6 @@ const DetailedLayout = memo(function DetailedLayout({
             menuItemId={menuItemId}
             initialInWishlist={isInWishlist}
           />
-          <CompareIcon menuItem={menuItem} variant="icon" />
         </div>
 
         <div className="grid grid-cols-[104px_1fr] gap-2.5 sm:grid-cols-[144px_1fr] sm:gap-3.5 lg:grid-cols-[220px_1fr] lg:gap-5">

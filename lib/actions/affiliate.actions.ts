@@ -20,6 +20,7 @@ import {
   sendAffiliateResubmittedNotification,
 } from "@/lib/email/transactional";
 import { formatCurrency } from "../utils";
+import { isAdminRole } from "@/lib/dashboard-access";
 
 export async function registerAffiliate(data: any): Promise<ActionState> {
   try {
@@ -502,7 +503,7 @@ export async function getAllAffiliates({
   try {
     await connectToDatabase();
     const session = await getServerSession();
-    if (session?.user?.role !== "ADMIN") throw new Error("Unauthorized");
+    if (!isAdminRole(session?.user?.role)) throw new Error("Unauthorized");
 
     const filter: any = {};
     if (status && status !== "all") {
@@ -570,7 +571,7 @@ export async function getAffiliateAdminStats(dateRange?: {
   try {
     await connectToDatabase();
     const session = await getServerSession();
-    if (session?.user?.role !== "ADMIN") throw new Error("Unauthorized");
+    if (!isAdminRole(session?.user?.role)) throw new Error("Unauthorized");
 
     const from = dateRange?.from ? new Date(dateRange.from) : undefined;
     const to = dateRange?.to ? new Date(dateRange.to) : undefined;
@@ -720,7 +721,7 @@ export async function updateAffiliateStatus(
 
   try {
     const userSession = await getServerSession();
-    if (userSession?.user?.role !== "ADMIN") throw new Error("Unauthorized");
+    if (!isAdminRole(userSession?.user?.role)) throw new Error("Unauthorized");
 
     const update: any = { status };
     if (status === "rejected") {
@@ -738,12 +739,29 @@ export async function updateAffiliateStatus(
     }).populate("user", "name email");
     if (!affiliate) throw new Error("Affiliate not found");
 
-    // Sync isAffiliate status to User model
+    // Sync affiliate flag to User model and preserve admin role for configured admins.
+    const adminEmails = (process.env.ADMIN_EMAILS ?? "")
+      .split(";")
+      .map((email) => email.trim().toLowerCase())
+      .filter(Boolean);
+    const affiliateUser = affiliate.user as unknown as {
+      _id?: string;
+      email?: string;
+    };
+    const shouldKeepAdminRole =
+      !!affiliateUser.email &&
+      adminEmails.includes(affiliateUser.email.trim().toLowerCase());
+
+    const userUpdate: { isAffiliate: boolean; role?: "ADMIN" } = {
+      isAffiliate: status === "approved",
+    };
+    if (shouldKeepAdminRole) {
+      userUpdate.role = "ADMIN";
+    }
+
     await User.findByIdAndUpdate(
-      affiliate.user,
-      {
-        isAffiliate: status === "approved",
-      },
+      affiliateUser._id || affiliate.user,
+      userUpdate,
       { session },
     );
 
@@ -807,7 +825,7 @@ export async function getAllPayouts({
   try {
     await connectToDatabase();
     const session = await getServerSession();
-    if (session?.user?.role !== "ADMIN") throw new Error("Unauthorized");
+    if (!isAdminRole(session?.user?.role)) throw new Error("Unauthorized");
 
     const filter: any = {};
     if (status && status !== "all") {
@@ -869,7 +887,7 @@ export async function getPayoutAdminStats(dateRange?: {
   try {
     await connectToDatabase();
     const session = await getServerSession();
-    if (session?.user?.role !== "ADMIN") throw new Error("Unauthorized");
+    if (!isAdminRole(session?.user?.role)) throw new Error("Unauthorized");
 
     const filter: any = {};
     if (dateRange?.from || dateRange?.to) {
@@ -927,7 +945,7 @@ export async function deleteAffiliate(id: string) {
   try {
     await connectToDatabase();
     const session = await getServerSession();
-    if (session?.user?.role !== "ADMIN") throw new Error("Unauthorized");
+    if (!isAdminRole(session?.user?.role)) throw new Error("Unauthorized");
 
     const affiliate = await Affiliate.findById(id);
     if (!affiliate) throw new Error("Affiliate not found");
@@ -972,7 +990,7 @@ export async function deletePayoutRequest(id: string) {
 
   try {
     const userSession = await getServerSession();
-    if (userSession?.user?.role !== "ADMIN") throw new Error("Unauthorized");
+    if (!isAdminRole(userSession?.user?.role)) throw new Error("Unauthorized");
 
     const payout = await AffiliatePayout.findById(id).session(session);
     if (!payout) throw new Error("Payout request not found");
@@ -1018,7 +1036,7 @@ export async function updatePayoutStatus(
   try {
     await connectToDatabase();
     const session = await getServerSession();
-    if (session?.user?.role !== "ADMIN") throw new Error("Unauthorized");
+    if (!isAdminRole(session?.user?.role)) throw new Error("Unauthorized");
 
     const payout = await AffiliatePayout.findById(id);
     if (!payout) throw new Error("Payout not found");

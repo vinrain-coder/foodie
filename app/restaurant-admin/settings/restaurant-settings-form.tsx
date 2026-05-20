@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import {
   type RestaurantSettingsInput,
+  updateRestaurantSettingsByAdmin,
   updateRestaurantSettingsForOwner,
 } from "@/lib/actions/restaurant.actions";
 import { RestaurantApplicationInputSchema } from "@/lib/validator";
@@ -21,8 +22,12 @@ import { ValidationSummary } from "@/components/shared/validation-summary";
 
 export default function RestaurantSettingsForm({
   restaurant,
+  adminRestaurantId,
+  submitButtonLabel = "Save Restaurant Settings",
 }: {
   restaurant: RestaurantSettingsInput;
+  adminRestaurantId?: string;
+  submitButtonLabel?: string;
 }) {
   const form = useForm<RestaurantSettingsInput>({
     resolver: zodResolver(
@@ -36,10 +41,14 @@ export default function RestaurantSettingsForm({
   } = form;
 
   async function onSubmit(values: RestaurantSettingsInput) {
-    const response = await updateRestaurantSettingsForOwner({
+    const payload = {
       ...values,
       slug: toSlug(values.slug || values.name),
-    });
+    };
+
+    const response = adminRestaurantId
+      ? await updateRestaurantSettingsByAdmin(adminRestaurantId, payload)
+      : await updateRestaurantSettingsForOwner(payload);
 
     if (!response.success) {
       if (response.errors) {
@@ -329,7 +338,7 @@ export default function RestaurantSettingsForm({
           loadingText="Saving..."
           disabled={isSubmitting}
         >
-          Save Restaurant Settings
+          {submitButtonLabel}
         </LoadingButton>
       </form>
     </FormProvider>

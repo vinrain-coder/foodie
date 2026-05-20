@@ -28,7 +28,10 @@ import ThemeSwitcher from "./theme-switcher";
 import { authClient } from "@/lib/auth-client";
 import Link from "next/link";
 import { SignOutButton } from "../sign-out-button";
-import { canAccessAdminDashboard, isRestaurantRole } from "@/lib/dashboard-access";
+import {
+  canAccessAdminDashboard,
+  isRestaurantRole,
+} from "@/lib/dashboard-access";
 
 const Menu = ({ forAdmin = false }: { forAdmin?: boolean }) => {
   const { data: session } = authClient.useSession();
@@ -96,7 +99,6 @@ const Menu = ({ forAdmin = false }: { forAdmin?: boolean }) => {
                       { href: "/search", label: "Shop all menu items" },
                       { href: "/restaurants", label: "Restaurants" },
                       { href: "/categories", label: "Categories" },
-                      { href: "/compare", label: "Compare menu items" },
                       { href: "/blogs", label: "Blogs" },
                       { href: "/track", label: "Track order" },
                       { href: "/support", label: "Support" },
@@ -128,7 +130,6 @@ const Menu = ({ forAdmin = false }: { forAdmin?: boolean }) => {
                           { href: "/account/orders", label: "Orders" },
                           { href: "/account/wishlist", label: "Wishlist" },
                           { href: "/coupons", label: "Coupons" },
-                          { href: "/compare", label: "Compare" },
                           {
                             href: "/browsing-history",
                             label: "Browsing History",
