@@ -309,27 +309,6 @@ export const OrderSummary = ({
               </span>
             </div>
 
-            {paymentMethod === "BNPL" && (
-              <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-lg">
-                <div className="text-sm font-bold text-blue-800 dark:text-blue-300 mb-2">
-                  Flexible BNPL Financing
-                </div>
-                <div className="space-y-2 text-sm">
-                  <p className="text-xs text-muted-foreground">
-                    Enjoy total flexibility. Pay as much or as little as you
-                    want at any time within the next 90 days.
-                  </p>
-                  <div className="flex justify-between border-t pt-2 mt-2">
-                    <span className="text-muted-foreground font-medium">
-                      Repayment Period:
-                    </span>
-                    <span className="font-bold text-blue-700 dark:text-blue-400">
-                      90 Days
-                    </span>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
         </div>
         <div>

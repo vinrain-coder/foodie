@@ -41,7 +41,6 @@ import StockSubscription from "../db/models/stock-subscription.model";
 import mongoose from "mongoose";
 import FirstPurchaseClaim from "../db/models/first-purchase-claim.model";
 import WalletTransaction from "../db/models/wallet-transaction.model";
-import BNPLPayment from "../db/models/bnpl-payment.model";
 import CoinTransaction from "../db/models/coin-transaction.model";
 import { getSetting } from "./setting.actions";
 import { getServerSession } from "../get-session";
@@ -60,7 +59,6 @@ import Affiliate from "../db/models/affiliate.model";
 import AffiliateEarning from "../db/models/affiliate-earning.model";
 import { cookies } from "next/headers";
 import Restaurant from "../db/models/restaurant.model";
-import Installment from "../db/models/installment.model";
 import { canAccessAdminDashboard } from "@/lib/dashboard-access";
 import { getStaffScope } from "@/lib/staff-scope";
 
@@ -395,45 +393,11 @@ const revertOrderEffects = async (
       }
     }
 
-    // B. Handle partial BNPL repayments
-    // This aggregates all subsequent payments made after the order was created
-    if (order.paymentType === "bnpl") {
-      const repayments = await BNPLPayment.find({
-        order: order._id,
-        status: "success",
-        type: "repayment",
-      }).session(session || null);
-
-      for (const p of repayments) {
-        if (p.source === "coins") {
-          coinsToRefund = round2(coinsToRefund + p.amount);
-        } else if (p.source === "wallet" || p.source === "paystack") {
-          walletToRefund = round2(walletToRefund + p.amount);
-        }
-      }
-
-      // Mark all successful repayments as reversed atomically
-      if (repayments.length > 0) {
-        await BNPLPayment.updateMany(
-          { _id: { $in: repayments.map((r) => r._id) } },
-          { $set: { status: "reversed" } },
-          { session },
-        );
-      }
-    }
-
-    // C. Handle initial checkout redemptions (Applicable to ALL order types)
+    // B. Handle initial checkout redemptions.
     // These are the amounts deducted IMMEDIATELY when the order record was created.
     // Standard full orders already had these included in step A logic (partial wallet/coins).
     // To avoid double-counting for full orders, we only add these if they haven't been accounted for.
-    if (order.paymentType === "bnpl") {
-      if (order.walletAmountRedeemed > 0) {
-        walletToRefund = round2(walletToRefund + order.walletAmountRedeemed);
-      }
-      if (order.coinsRedeemed > 0) {
-        coinsToRefund = round2(coinsToRefund + order.coinsRedeemed);
-      }
-    } else if (
+    if (
       order.paymentType === "full" &&
       order.isPaid &&
       order.paymentMethod !== "Coins" &&
@@ -445,7 +409,7 @@ const revertOrderEffects = async (
       }
     } else if (
       !order.isPaid &&
-      (order.paymentType === "full" || order.paymentType === "bnpl")
+      order.paymentType === "full"
     ) {
       // Handle cancelled UNPAID orders with initial redemptions (e.g. user redemeed coins but payment failed/not finished)
       if (order.walletAmountRedeemed > 0) {
@@ -638,11 +602,8 @@ const runStatusTransition = async ({
       refundToWallet: true,
       session,
     });
-    // Update BNPL fields immediately
-    order.financingStatus = "cancelled";
     order.paymentStatus = "cancelled";
     order.remainingAmount = 0;
-    order.minimumPayment = 0;
   }
 
   if (nextStatus === "returned") {
@@ -835,26 +796,10 @@ export const createOrder = async (
       (serialized as any).accessToken = createdOrder.accessToken;
     }
 
-    let firstInstallment = null;
-    if (createdOrder.paymentType === "bnpl") {
-      const installment = await Installment.findOne({
-        order: createdOrder._id,
-      }).sort({ dueDate: 1 });
-      if (installment) {
-        firstInstallment = {
-          _id: installment._id.toString(),
-          amount: installment.amount,
-        };
-      }
-    }
-
     return {
       success: true,
       message: "Order placed successfully",
-      data: {
-        ...serialized,
-        firstInstallment,
-      },
+      data: serialized,
     };
   } catch (error) {
     await session.abortTransaction();
@@ -1050,6 +995,10 @@ export const createOrderFromCart = async (
       ? Array.from(orderRestaurantIdSet)[0]
       : undefined;
 
+  if (cart.paymentMethod === "BNPL") {
+    throw new Error("BNPL is no longer supported. Please choose another payment method.");
+  }
+
   if (cart.paymentMethod === "Coins") {
     if (!userId) throw new Error("Authentication required for Coin payments");
     const user = await User.findById(userId);
@@ -1077,31 +1026,15 @@ export const createOrderFromCart = async (
   }
 
   const totalPrice = cart.totalPrice;
-  const paymentType = cart.paymentMethod === "BNPL" ? "bnpl" : "full";
+  const paymentType = "full";
   let paymentStatus: "pending" | "partial" | "paid" | "overdue" = "pending";
   let amountPaid = 0;
   let remainingAmount = totalPrice;
-
-  const isBNPL = cart.paymentMethod === "BNPL";
-
-  const dynamicMinimumPayment = isBNPL
-    ? Math.min(remainingAmount, Math.max(round2(remainingAmount * 0.2), 100))
-    : 0;
 
   if (isPaid) {
     paymentStatus = "paid";
     amountPaid = totalPrice;
     remainingAmount = 0;
-  }
-
-  const bnplDueDate = new Date();
-  bnplDueDate.setDate(bnplDueDate.getDate() + 90); // Default 90 days for full repayment
-
-  if (cart.paymentMethod === "BNPL") {
-    if (!userId) throw new Error("Authentication required for BNPL");
-    paymentStatus = "pending";
-    amountPaid = 0;
-    remainingAmount = totalPrice;
   }
 
   coinsEarned = round2(cart.itemsPrice * (common.coinsRewardRate / 100));
@@ -1145,10 +1078,6 @@ export const createOrderFromCart = async (
     paymentStatus,
     amountPaid,
     remainingAmount,
-    bnplDueDate: cart.paymentMethod === "BNPL" ? bnplDueDate : undefined,
-    financingStatus: cart.paymentMethod === "BNPL" ? "active" : undefined,
-    financingPlan: cart.paymentMethod === "BNPL" ? "standard" : undefined,
-    minimumPayment: dynamicMinimumPayment,
     trackingNumber: initialTrackingNumber,
     status: "pending",
     affiliate: affiliateId,
@@ -1175,8 +1104,6 @@ export const createOrderFromCart = async (
 
   const order = validated.data;
   const createdOrder = new Order(order);
-
-  // Note: Old installment creation is removed in favor of flexible BNPL system
 
   if (cart.paymentMethod === "Coins") {
     const userUpdate = await User.findOneAndUpdate(

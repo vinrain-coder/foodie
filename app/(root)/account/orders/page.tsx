@@ -38,9 +38,8 @@ type MyOrderRow = {
   _id: string;
   createdAt: string | Date;
   totalPrice: number;
-  paymentType?: "full" | "bnpl";
+  paymentType?: "full";
   paymentStatus?: "pending" | "partial" | "paid" | "overdue";
-  remainingAmount?: number;
   isPaid: boolean;
   paidAt?: string | Date;
   isDelivered: boolean;
@@ -166,9 +165,6 @@ export default async function OrdersPage({ searchParams }: OrdersPageProps) {
                 Paid
               </TableHead>
               <TableHead className="text-xs text-muted-foreground">
-                BNPL Balance
-              </TableHead>
-              <TableHead className="text-xs text-muted-foreground">
                 Delivered
               </TableHead>
               <TableHead className="text-xs text-muted-foreground">
@@ -181,7 +177,7 @@ export default async function OrdersPage({ searchParams }: OrdersPageProps) {
             {orders.data.length === 0 && (
               <TableRow>
                 <TableCell
-                  colSpan={7}
+                  colSpan={6}
                   className="text-center py-8 text-muted-foreground"
                 >
                   You have no orders yet.
@@ -217,44 +213,19 @@ export default async function OrdersPage({ searchParams }: OrdersPageProps) {
                       ? formatDateTime(order.paidAt).dateTime
                       : "No"}
                   </TableCell>
-                  <TableCell>
-                    {order.paymentType === "bnpl" && !order.isPaid ? (
-                      <div className="space-y-1">
-                        <div className="font-medium">
-                          <Price price={order.remainingAmount || 0} plain />
-                        </div>
-                        <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                          {order.paymentStatus || "pending"}
-                        </div>
-                      </div>
-                    ) : (
-                      "-"
-                    )}
-                  </TableCell>
-
-                  <TableCell>
+                <TableCell>
                     {order.isDelivered && order.deliveredAt
                       ? formatDateTime(order.deliveredAt).dateTime
                       : "No"}
                   </TableCell>
 
                   <TableCell>
-                    <div className="flex flex-col gap-1">
-                      <Link
-                        href={`/account/orders/${orderId}`}
-                        className="text-sm text-blue-600 hover:underline"
-                      >
-                        View
-                      </Link>
-                      {order.paymentType === "bnpl" && !order.isPaid && (
-                        <Link
-                          href={`/account/orders/${orderId}#bnpl-installments`}
-                          className="text-sm text-emerald-600 hover:underline font-medium"
-                        >
-                          Pay installment
-                        </Link>
-                      )}
-                    </div>
+                    <Link
+                      href={`/account/orders/${orderId}`}
+                      className="text-sm text-blue-600 hover:underline"
+                    >
+                      View
+                    </Link>
                   </TableCell>
                 </TableRow>
               );

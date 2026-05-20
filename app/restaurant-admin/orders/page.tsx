@@ -105,7 +105,6 @@ export default async function OrdersPage(props: {
               <TableHead>Date</TableHead>
               <TableHead>Buyer</TableHead>
               <TableHead>Total</TableHead>
-              <TableHead>Type</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Payment</TableHead>
               <TableHead>Delivered</TableHead>
@@ -147,11 +146,6 @@ export default async function OrdersPage(props: {
                       <Price price={order.totalPrice} plain />
                     </TableCell>
                     <TableCell>
-                      <span className="text-xs uppercase font-medium text-muted-foreground">
-                        {order.paymentType || "full"}
-                      </span>
-                    </TableCell>
-                    <TableCell>
                       <span
                         className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium border ${statusStyles.bg} ${statusStyles.text} ${statusStyles.border}`}
                       >
@@ -177,11 +171,6 @@ export default async function OrdersPage(props: {
                           {order.paymentStatus?.toUpperCase() ||
                             (order.isPaid ? "PAID" : "PENDING")}
                         </span>
-                        {order.paymentType === "bnpl" && (
-                          <span className="text-[10px] text-muted-foreground">
-                            Paid: <Price price={order.amountPaid || 0} plain />
-                          </span>
-                        )}
                       </div>
                     </TableCell>
                     <TableCell>
@@ -216,7 +205,7 @@ export default async function OrdersPage(props: {
             ) : (
               <TableRow>
                 <TableCell
-                  colSpan={8}
+                  colSpan={7}
                   className="h-24 text-center text-muted-foreground"
                 >
                   No orders found matching the criteria.

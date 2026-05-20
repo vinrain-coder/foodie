@@ -760,10 +760,7 @@ export const useCheckoutForm = (
         methods.push({ name: "Wallet", commission: 0, isPublished: true });
       }
     }
-    return methods.filter((m) => {
-      if (m.name === "BNPL" && !session) return false;
-      return true;
-    });
+    return methods.filter((m) => m.name !== "BNPL");
   }, [availablePaymentMethods, userCoins, userWallet, totalPrice, session]);
 
   const isSelectedMethodAvailable = useMemo(
@@ -812,7 +809,7 @@ export const useCheckoutForm = (
       (m) => m.name === paymentMethod,
     );
 
-    if (!isAvailable || (paymentMethod === "BNPL" && !session)) {
+    if (!isAvailable) {
       const fallback =
         finalAvailablePaymentMethods.find(
           (m) => m.name === defaultPaymentMethod,

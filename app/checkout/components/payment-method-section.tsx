@@ -96,11 +96,6 @@ export const PaymentMethodSection = ({
                         )
                       </span>
                     )}
-                    {pm.name === "BNPL" && (
-                      <span className="text-xs font-normal text-muted-foreground">
-                        (Flexible repayments over 90 days)
-                      </span>
-                    )}
                   </Label>
                 </div>
               ))}

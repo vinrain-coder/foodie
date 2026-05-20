@@ -1,23 +1,14 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { CheckCircle2, Package } from "lucide-react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import Breadcrumb from "@/components/shared/breadcrumb";
-import { getOrderById } from "@/lib/actions/order.actions";
-import { SerializedOrder } from "@/lib/actions/order.actions";
-import { formatId, formatNumberWithTwoDecimals } from "@/lib/utils";
-import dynamic from "next/dynamic";
-import { Card, CardContent } from "@/components/ui/card";
-import { Slider } from "@/components/ui/slider";
-import { Input } from "@/components/ui/input";
-
-const PaystackInline = dynamic(() => import("@/app/checkout/paystack-inline"), {
-  ssr: false,
-});
+import { getOrderById, SerializedOrder } from "@/lib/actions/order.actions";
+import { formatId } from "@/lib/utils";
 
 const colors = ["#EAB308", "#CA8A04", "#A16207", "#FACC15", "#854D0E"];
 
@@ -36,7 +27,6 @@ export default function OrderPlacedPage() {
   const accessToken = searchParams.get("accessToken");
 
   const [order, setOrder] = useState<SerializedOrder | null>(null);
-  const [repaymentCents, setRepaymentCents] = useState<number>(0);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -51,28 +41,6 @@ export default function OrderPlacedPage() {
     }
   }, [orderId, accessToken]);
 
-  const suggestedAmount = order
-    ? order.minimumPayment || order.remainingAmount || 0
-    : 0;
-
-  const clampedAmount = Math.min(suggestedAmount, order?.remainingAmount || 0);
-
-  useEffect(() => {
-    if (clampedAmount > 0 && repaymentCents === 0) {
-      setRepaymentCents(Math.round(clampedAmount * 100));
-    }
-  }, [clampedAmount, repaymentCents]);
-
-  const repaymentAmount = repaymentCents / 100;
-  const maxCents = order ? Math.round(order.remainingAmount * 100) : 0;
-  const minCents = order ? Math.min(100, maxCents) : 0;
-
-  const showBnplPayment =
-    order?.paymentType === "bnpl" &&
-    order.remainingAmount > 0 &&
-    clampedAmount > 0;
-
-  // ✅ FIXED: deterministic generation AFTER mount only
   const confettiParticles = useMemo(() => {
     if (!mounted) return [];
 
@@ -104,7 +72,6 @@ export default function OrderPlacedPage() {
         <Breadcrumb />
       </div>
 
-      {/* CONFETTI */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
         {confettiParticles.map((p) => (
           <motion.div
@@ -123,7 +90,6 @@ export default function OrderPlacedPage() {
       </div>
 
       <div className="relative z-10 text-center max-w-lg mx-auto">
-        {/* SPARKLES */}
         <motion.div
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
@@ -172,61 +138,6 @@ export default function OrderPlacedPage() {
             Order #{order ? formatId(order._id) : formatId(orderId || "")}
           </span>
         </motion.div>
-
-        {showBnplPayment && (
-          <motion.div className="mb-10 w-full">
-            <Card className="border-primary/20 bg-primary/5">
-              <CardContent className="p-6 text-left">
-                <h3 className="text-lg font-bold mb-2">Start Your Repayment</h3>
-
-                <div className="mb-4">
-                  <Input
-                    type="number"
-                    min={minCents / 100}
-                    max={maxCents / 100}
-                    step={0.01}
-                    placeholder="1"
-                    value={repaymentAmount}
-                    onChange={(e) => {
-                      const val = parseFloat(e.target.value);
-                      if (!isNaN(val) && order) {
-                        const clampedVal = Math.min(
-                          Math.max(0.01, val),
-                          order.remainingAmount,
-                        );
-                        setRepaymentCents(Math.round(clampedVal * 100));
-                      }
-                    }}
-                  />
-                </div>
-
-                <Slider
-                  value={[repaymentCents]}
-                  min={minCents}
-                  max={maxCents}
-                  step={1}
-                  onValueChange={([val]) => setRepaymentCents(val)}
-                  className="cursor-pointer"
-                />
-
-                <PaystackInline
-                  email={
-                    (order?.userEmail ||
-                      (order?.shippingAddress as any)?.email) as string
-                  }
-                  amount={repaymentCents}
-                  publicKey={process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY!}
-                  orderId={orderId}
-                  metadata={{ type: "bnpl_repayment", orderId }}
-                  buttonLabel={`Pay KSh ${formatNumberWithTwoDecimals(
-                    repaymentAmount,
-                  )} Now`}
-                  className="mt-4 w-full rounded-full"
-                />
-              </CardContent>
-            </Card>
-          </motion.div>
-        )}
 
         <div className="flex gap-4 justify-center">
           <Link href={`/account/orders/${orderId}`}>
