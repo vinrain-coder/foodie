@@ -39,15 +39,21 @@ export default async function RestaurantAdminLayout({
   let restaurantName = "Restaurant Dashboard";
   let restaurantLogo = "";
 
-  if (scope.role === "RESTAURANT") {
-    const restaurant = await Restaurant.findById(scope.restaurantId)
+  let restaurant =
+    scope.role === "RESTAURANT"
+      ? await Restaurant.findById(scope.restaurantId).select("name logo").lean()
+      : null;
+
+  if (!restaurant) {
+    // Fallback for mixed roles or ownership edge-cases: resolve by owner id.
+    restaurant = await Restaurant.findOne({ ownerId: session.user.id })
       .select("name logo")
       .lean();
+  }
 
-    if (restaurant) {
-      restaurantName = restaurant.name;
-      restaurantLogo = restaurant.logo || "";
-    }
+  if (restaurant) {
+    restaurantName = restaurant.name;
+    restaurantLogo = restaurant.logo || "";
   }
 
   return (
@@ -65,7 +71,10 @@ export default async function RestaurantAdminLayout({
         restaurantName={restaurantName}
       />
       <SidebarInset>
-        <SiteHeader restaurantName={restaurantName} />
+        <SiteHeader
+          restaurantName={restaurantName}
+          restaurantLogo={restaurantLogo}
+        />
         <div className="flex flex-1 flex-col">
           <div className="@container/main flex flex-1 flex-col gap-2">
             <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-2">

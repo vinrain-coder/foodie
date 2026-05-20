@@ -37,6 +37,7 @@ import User from "../db/models/user.model";
 import Review from "../db/models/review.model";
 import NewsletterSubscription from "../db/models/newsletter-subscription.model";
 import SupportTicket from "../db/models/support-ticket.model";
+import StockSubscription from "../db/models/stock-subscription.model";
 import mongoose from "mongoose";
 import FirstPurchaseClaim from "../db/models/first-purchase-claim.model";
 import WalletTransaction from "../db/models/wallet-transaction.model";
@@ -2127,19 +2128,21 @@ export async function getOrderSummary(date: DateRange) {
     },
   };
 
+  const scopedMenuItems =
+    scope.role === "RESTAURANT"
+      ? await MenuItem.find(restaurantMenuItemFilter).select("_id").lean()
+      : [];
+  const scopedMenuItemIds = scopedMenuItems.map((item) => item._id);
+
   let reviewsCountPromise: Promise<number>;
   if (scope.role === "RESTAURANT") {
-    reviewsCountPromise = MenuItem.find(restaurantMenuItemFilter)
-      .select("_id")
-      .lean()
-      .then((menuItems) => {
-        const ids = menuItems.map((item) => item._id);
-        if (ids.length === 0) return 0;
-        return Review.countDocuments({
-          menuItem: { $in: ids },
-          createdAt: query.createdAt,
-        });
-      });
+    reviewsCountPromise =
+      scopedMenuItemIds.length === 0
+        ? Promise.resolve(0)
+        : Review.countDocuments({
+            menuItem: { $in: scopedMenuItemIds },
+            createdAt: query.createdAt,
+          });
   } else {
     reviewsCountPromise = Review.countDocuments(query);
   }
@@ -2160,18 +2163,34 @@ export async function getOrderSummary(date: DateRange) {
     usersCountPromise = User.countDocuments(query);
   }
 
+  const restockAlertsCountPromise =
+    scope.role === "RESTAURANT"
+      ? scopedMenuItemIds.length === 0
+        ? Promise.resolve(0)
+        : StockSubscription.countDocuments({
+            menuItem: { $in: scopedMenuItemIds },
+            isNotified: { $ne: true },
+          })
+      : StockSubscription.countDocuments({
+          isNotified: { $ne: true },
+        });
+
   const [
     ordersCount,
     menuItemsCount,
     usersCount,
     reviewsCount,
+    restockAlertsCount,
     newslettersCount,
     ticketsCount,
   ] = await Promise.all([
     Order.countDocuments(query),
-    MenuItem.countDocuments({ ...query, ...restaurantMenuItemFilter }),
+    scope.role === "RESTAURANT"
+      ? Promise.resolve(scopedMenuItemIds.length)
+      : MenuItem.countDocuments({ ...query, ...restaurantMenuItemFilter }),
     usersCountPromise,
     reviewsCountPromise,
+    restockAlertsCountPromise,
     scope.role === "RESTAURANT"
       ? Promise.resolve(0)
       : NewsletterSubscription.countDocuments({
@@ -2254,12 +2273,8 @@ export async function getOrderSummary(date: DateRange) {
 
   let latestReviewsQuery = Review.find();
   if (scope.role === "RESTAURANT") {
-    const restaurantMenuItems = await MenuItem.find(restaurantMenuItemFilter)
-      .select("_id")
-      .lean();
-    const restaurantMenuItemIds = restaurantMenuItems.map((item) => item._id);
     latestReviewsQuery = Review.find({
-      menuItem: { $in: restaurantMenuItemIds },
+      menuItem: { $in: scopedMenuItemIds },
     });
   }
   const latestReviews = await latestReviewsQuery
@@ -2281,6 +2296,7 @@ export async function getOrderSummary(date: DateRange) {
     menuItemsCount,
     usersCount,
     reviewsCount,
+    restockAlertsCount,
     newslettersCount,
     ticketsCount,
     totalSales,

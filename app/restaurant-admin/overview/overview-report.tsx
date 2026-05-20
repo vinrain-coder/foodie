@@ -6,7 +6,7 @@ import {
   CreditCard,
   Users,
   Star,
-  LifeBuoy,
+  BellRing,
   TrendingUp,
 } from "lucide-react";
 
@@ -182,7 +182,7 @@ export default function OverviewReport() {
               {formatNumber(data.usersCount)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              New registrations in range
+              Unique customers served in range
             </p>
           </CardContent>
           <div className="absolute bottom-0 right-0 p-2 opacity-5">
@@ -214,21 +214,23 @@ export default function OverviewReport() {
 
         <Card className="relative overflow-hidden border-l-4 border-l-orange-500 shadow-sm transition-all hover:shadow-md">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Support Inbox</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Restock Alerts
+            </CardTitle>
             <div className="rounded-full bg-orange-100 p-2 text-orange-600 dark:bg-orange-900/20 dark:text-orange-400">
-              <LifeBuoy className="size-4" />
+              <BellRing className="size-4" />
             </div>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {formatNumber(data.ticketsCount)}
+              {formatNumber(data.restockAlertsCount)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              Open tickets requiring action
+              Customers waiting for availability
             </p>
           </CardContent>
           <div className="absolute bottom-0 right-0 p-2 opacity-5">
-            <LifeBuoy className="size-12" />
+            <BellRing className="size-12" />
           </div>
         </Card>
 

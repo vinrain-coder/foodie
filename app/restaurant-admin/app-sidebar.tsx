@@ -51,11 +51,6 @@ const data = {
       url: "/restaurant-admin/orders",
       icon: IconReceipt2,
     },
-    {
-      title: "Delivery Locations",
-      url: "/restaurant-admin/delivery-locations",
-      icon: IconMapPin,
-    },
   ],
   storefront: [
     {
@@ -88,11 +83,6 @@ const data = {
   ],
   navSecondary: [
     {
-      title: "Analytics",
-      url: "/restaurant-admin/analytics",
-      icon: IconClipboardList,
-    },
-    {
       title: "Settings",
       url: "/restaurant-admin/settings",
       icon: IconSettings,
@@ -124,19 +114,24 @@ export function RestaurantAdminSidebar({
                 className="flex items-center gap-2"
               >
                 {restaurantLogo ? (
-                  <Image
-                    src={restaurantLogo}
-                    alt={`${restaurantName} logo`}
-                    width={52}
-                    height={52}
-                    className="rounded"
-                  />
+                  <div className="flex h-[52px] w-[52px] items-center justify-center overflow-hidden rounded border bg-muted/40">
+                    <Image
+                      src={restaurantLogo}
+                      alt={`${restaurantName} logo`}
+                      width={52}
+                      height={52}
+                      unoptimized
+                      className="h-full w-full object-contain"
+                    />
+                  </div>
                 ) : (
                   <div className="flex h-[52px] w-[52px] items-center justify-center rounded bg-primary/10 text-lg font-semibold text-primary">
                     {nameInitial}
                   </div>
                 )}
-                <span className="text-base font-semibold">{restaurantName}</span>
+                <span className="text-base font-semibold">
+                  {restaurantName}
+                </span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
