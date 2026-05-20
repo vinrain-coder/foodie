@@ -20,12 +20,12 @@ import type {
 } from "./types";
 
 const defaultBranding: ReceiptBranding = {
-  brandName: "ShoePedi",
-  website: "www.shoepedi.com",
-  supportEmail: "support@shoepedi.com",
+  brandName: "TumaFood",
+  website: "www.tumafood.com",
+  supportEmail: "support@tumafood.com",
   socials: [
-    { label: "Instagram", value: "@shoepedi" },
-    { label: "X", value: "@shoepedi" },
+    { label: "Instagram", value: "@tumafood" },
+    { label: "X", value: "@tumafood" },
   ],
   accentText: "Luxury Footwear & Fashion",
 };

@@ -1,9 +1,9 @@
 import { Document, Model, Types, model, models, Schema } from "mongoose";
 import { IMenuItemInput } from "@/types";
 
-export interface IMenuItem extends Document, IMenuItemInput {
+export interface IMenuItem extends Document, Omit<IMenuItemInput, "restaurant"> {
   _id: Types.ObjectId;
-  restaurant?: Types.ObjectId;
+  restaurant?: Types.ObjectId | string;
   numReviews: number;
   avgRating: number;
   ratingDistribution: { rating: number; count: number }[];

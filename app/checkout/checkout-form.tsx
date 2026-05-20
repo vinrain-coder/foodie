@@ -2,12 +2,16 @@
 
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { formatDateTime, calculateFutureDate } from "@/lib/utils";
+import {
+  calculateFutureMinutes,
+  FOOD_DELIVERY_ETA_MINUTES,
+  formatDateTime,
+} from "@/lib/utils";
 import { AddressBookEntry } from "@/types";
 
 import CheckoutFooter from "./checkout-footer";
@@ -39,32 +43,21 @@ const CheckoutForm = ({
   const {
     session,
     site,
-    availableDeliveryDates,
     items,
-    itemsPrice,
     discount,
     totalPrice,
     shippingAddress,
-    deliveryDateIndex,
     paymentMethod,
     createdOrder,
     isAddressSelected,
     isPaymentMethodSelected,
-    isDeliveryDateSelected,
     canPlaceOrder,
     isPlacingOrder,
   } = form;
 
-  const effectiveDeliveryDateIndex =
-    deliveryDateIndex ?? availableDeliveryDates.length - 1;
-  const selectedDeliveryDate =
-    availableDeliveryDates[effectiveDeliveryDateIndex];
-
   const renderSummary = () => (
     <OrderSummary {...form} discountAmount={discount} />
   );
-
-  const [paymentLocked, setPaymentLocked] = useState(false);
 
   useEffect(() => {
     if (!isCardOrMobileMoneyMethod(paymentMethod)) return;
@@ -90,43 +83,7 @@ const CheckoutForm = ({
 
           {/* Section 3: Items and Shipping */}
           <div className="rounded-lg shadow-sm">
-            {isDeliveryDateSelected && deliveryDateIndex !== undefined ? (
-              <div className="grid grid-cols-1 md:grid-cols-12 my-3 pb-3">
-                <div className="flex text-lg font-bold col-span-5">
-                  <span className="w-8">3 </span>
-                  <span>Items and shipping</span>
-                </div>
-                <div className="col-span-5">
-                  <p className="font-medium">
-                    Delivery date:{" "}
-                    {
-                      formatDateTime(
-                        calculateFutureDate(selectedDeliveryDate.daysToDeliver),
-                      ).dateOnly
-                    }
-                  </p>
-                  <ul className="mt-2 space-y-1 text-sm text-muted-foreground">
-                    {items.map((item, index) => (
-                      <li key={index} className="max-w-full wrap-break-word">
-                        {item.name} x {item.quantity}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-                <div className="col-span-2">
-                  <Button
-                    type="button"
-                    variant={"outline"}
-                    onClick={() => {
-                      form.setIsPaymentMethodSelected(true);
-                      form.setIsDeliveryDateSelected(false);
-                    }}
-                  >
-                    Change
-                  </Button>
-                </div>
-              </div>
-            ) : isPaymentMethodSelected && isAddressSelected ? (
+            {isPaymentMethodSelected && isAddressSelected ? (
               <>
                 <div className="flex text-primary text-lg font-bold my-2">
                   <span className="w-8">3 </span>
@@ -136,13 +93,14 @@ const CheckoutForm = ({
                   <CardContent className="p-4">
                     <p className="mb-4 text-sm md:text-base">
                       <span className="text-lg font-bold text-green-700">
-                        Arriving{" "}
+                        Arrives in about {FOOD_DELIVERY_ETA_MINUTES} mins
+                      </span>
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        ETA{" "}
                         {
                           formatDateTime(
-                            calculateFutureDate(
-                              selectedDeliveryDate.daysToDeliver,
-                            ),
-                          ).dateOnly
+                            calculateFutureMinutes(FOOD_DELIVERY_ETA_MINUTES),
+                          ).timeOnly
                         }
                       </span>
                     </p>
@@ -154,13 +112,7 @@ const CheckoutForm = ({
                         removeItem={form.removeItem}
                       />
                       <ShippingSpeedSection
-                        availableDeliveryDates={availableDeliveryDates}
-                        deliveryDateIndex={deliveryDateIndex}
-                        setDeliveryDateIndex={form.setDeliveryDateIndex}
-                        discount={discount}
-                        itemsPrice={itemsPrice}
-                        selectedPlace={form.selectedPlace}
-                        places={form.places}
+                        shippingPrice={form.shippingPrice}
                       />
                     </div>
                   </CardContent>
@@ -194,9 +146,6 @@ const CheckoutForm = ({
                       onSuccess={form.handleCompletePayment}
                       onFailure={form.handlePaymentFailure}
                       buttonLabel="Complete secure payment"
-                      metadata={{
-                        onStart: () => setPaymentLocked(true),
-                      }}
                     />
                     <p className="mt-3 text-xs text-muted-foreground">
                       Your order has been created. Complete the secure payment
@@ -223,9 +172,6 @@ const CheckoutForm = ({
                         onSuccess={form.handleCompletePayment}
                         onFailure={form.handlePaymentFailure}
                         buttonLabel="Complete secure payment"
-                        metadata={{
-                          onStart: () => setPaymentLocked(true),
-                        }}
                       />
                       <p className="mt-3 text-sm text-muted-foreground">
                         Your order is ready. If the payment window does not

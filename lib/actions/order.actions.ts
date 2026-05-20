@@ -1,7 +1,13 @@
 "use server";
 
 import { Cart, IOrderList, OrderItem, ShippingAddress } from "@/types";
-import { escapeRegExp, formatError, round2 } from "../utils";
+import {
+  calculateFutureMinutes,
+  escapeRegExp,
+  FOOD_DELIVERY_ETA_MINUTES,
+  formatError,
+  round2,
+} from "../utils";
 import {
   canTransitionOrderStatus,
   generateTrackingNumber,
@@ -23,6 +29,7 @@ import {
   sendAskReviewOrderItems,
   sendOrderTrackingNotification,
   sendPurchaseReceipt,
+  sendRestaurantOrderCreatedNotification,
 } from "@/lib/email/transactional";
 import { DateRange } from "react-day-picker";
 import MenuItem from "../db/models/menu.item.model";
@@ -51,8 +58,7 @@ import {
 import Affiliate from "../db/models/affiliate.model";
 import AffiliateEarning from "../db/models/affiliate-earning.model";
 import { cookies } from "next/headers";
-import { calculateShippingPrice } from "../delivery";
-import DeliveryLocation from "../db/models/delivery-location.model";
+import Restaurant from "../db/models/restaurant.model";
 import Installment from "../db/models/installment.model";
 import { canAccessAdminDashboard } from "@/lib/dashboard-access";
 import { getStaffScope } from "@/lib/staff-scope";
@@ -167,6 +173,8 @@ const buildRestaurantOrderFilter = (scope: Awaited<ReturnType<typeof getStaffSco
   scope.role === "RESTAURANT"
     ? { restaurant: new mongoose.Types.ObjectId(scope.restaurantId) }
     : {};
+
+const normalizeEmail = (email?: string | null) => email?.trim().toLowerCase() || "";
 
 /**
  * Internal helper to handle incrementing or decrementing usage for coupons/affiliates.
@@ -777,6 +785,49 @@ export const createOrder = async (
       createdAt: createdOrder.createdAt.toISOString(),
     });
 
+    try {
+      if (createdOrder.restaurant) {
+        const restaurant = await Restaurant.findById(createdOrder.restaurant)
+          .populate("ownerId", "name email")
+          .select("name email ownerId")
+          .lean();
+
+        if (restaurant) {
+          const owner =
+            typeof restaurant.ownerId === "object" && restaurant.ownerId !== null
+              ? (restaurant.ownerId as { name?: string; email?: string })
+              : null;
+
+          const restaurantRecipientEmails = Array.from(
+            new Set(
+              [owner?.email, restaurant.email]
+                .map((email) => normalizeEmail(email))
+                .filter((email) => email.length > 0),
+            ),
+          );
+
+          if (restaurantRecipientEmails.length > 0) {
+            await sendRestaurantOrderCreatedNotification({
+              to: restaurantRecipientEmails.join(","),
+              ownerName: owner?.name || restaurant.name || "Restaurant admin",
+              restaurantName: restaurant.name,
+              orderId: createdOrder._id.toString(),
+              trackingNumber: createdOrder.trackingNumber,
+              totalPrice: Number(createdOrder.totalPrice || 0),
+              paymentMethod: createdOrder.paymentMethod,
+              itemCount: createdOrder.items.length,
+              isPaid: createdOrder.isPaid,
+            });
+          }
+        }
+      }
+    } catch (restaurantOrderEmailError) {
+      console.error(
+        "Non-critical: Failed to send restaurant order notification email:",
+        restaurantOrderEmailError,
+      );
+    }
+
     // For guest checkout, we need to return the accessToken once upon creation
     const serialized = serializeOrder(createdOrder);
     if (createdOrder.isGuest && createdOrder.accessToken && serialized) {
@@ -1059,6 +1110,12 @@ export const createOrderFromCart = async (
   )
     ?.trim()
     .toLowerCase();
+  const etaDate =
+    cart.expectedDeliveryDate instanceof Date &&
+    !Number.isNaN(cart.expectedDeliveryDate.getTime()) &&
+    cart.expectedDeliveryDate.getTime() > Date.now()
+      ? cart.expectedDeliveryDate
+      : calculateFutureMinutes(FOOD_DELIVERY_ETA_MINUTES);
   const initialTrackingNumber = generateTrackingNumber();
   const validated = OrderInputSchema.safeParse({
     user: userId,
@@ -1075,7 +1132,7 @@ export const createOrderFromCart = async (
     shippingPrice: cart.shippingPrice,
     taxPrice: cart.taxPrice,
     totalPrice,
-    expectedDeliveryDate: cart.expectedDeliveryDate,
+    expectedDeliveryDate: etaDate,
     coupon: appliedCoupon,
     coinsEarned,
     coinsRedeemed,
@@ -1096,7 +1153,7 @@ export const createOrderFromCart = async (
     affiliate: affiliateId,
     affiliateCode: affiliateCode,
     shipment: {
-      estimatedDeliveryDate: cart.expectedDeliveryDate,
+      estimatedDeliveryDate: etaDate,
     },
     trackingHistory: [
       {
@@ -1969,7 +2026,7 @@ export const calcDeliveryDateAndPrice = async ({
   discount?: number;
 }) => {
   try {
-    const { availableDeliveryDates, common } = await getSetting();
+    const { common } = await getSetting();
     const itemsPrice = round2(
       (items || []).reduce(
         (acc, item) => acc + (item.price || 0) * (item.quantity || 0),
@@ -1977,44 +2034,48 @@ export const calcDeliveryDateAndPrice = async ({
       ),
     );
 
-    let locationRate = 0;
-    if (shippingAddress?.province && shippingAddress?.city) {
-      await connectToDatabase();
-      const normalizedProvince = (shippingAddress.province || "")
-        .trim()
-        .toLowerCase()
-        .replace(/\s+/g, " ");
-      const normalizedCity = (shippingAddress.city || "")
-        .trim()
-        .toLowerCase()
-        .replace(/\s+/g, " ");
+    const safeDeliveryDateIndex =
+      deliveryDateIndex === undefined || isNaN(Number(deliveryDateIndex))
+        ? 0
+        : Number(deliveryDateIndex);
 
-      if (normalizedProvince && normalizedCity) {
-        const location = await DeliveryLocation.findOne({
-          county: normalizedProvince,
-          city: normalizedCity,
-        }).lean();
-        if (location) {
-          locationRate = location.rate || 0;
+    let shippingPrice = 0;
+    const uniqueMenuItemIds = [
+      ...new Set(
+        (items || [])
+          .map((item) => item.menuItem?.toString())
+          .filter(
+            (id): id is string => Boolean(id && mongoose.Types.ObjectId.isValid(id)),
+          ),
+      ),
+    ];
+
+    if (uniqueMenuItemIds.length > 0) {
+      await connectToDatabase();
+      const menuItems = await MenuItem.find({
+        _id: { $in: uniqueMenuItemIds },
+      })
+        .select("restaurant")
+        .lean();
+
+      const restaurantIds = Array.from(
+        new Set(
+          menuItems
+            .map((menuItem) => menuItem.restaurant?.toString())
+            .filter((value): value is string => Boolean(value)),
+        ),
+      );
+
+      if (restaurantIds.length === 1) {
+        const restaurant = await Restaurant.findById(restaurantIds[0])
+          .select("deliveryFee acceptsDelivery")
+          .lean();
+
+        if (restaurant?.acceptsDelivery !== false) {
+          shippingPrice = round2(Number(restaurant?.deliveryFee || 0));
         }
       }
     }
-
-    const safeDeliveryDateIndex =
-      deliveryDateIndex === undefined || isNaN(Number(deliveryDateIndex))
-        ? Math.max(0, (availableDeliveryDates?.length || 1) - 1)
-        : Number(deliveryDateIndex);
-
-    const deliveryDate = availableDeliveryDates?.[safeDeliveryDateIndex];
-
-    const shippingPrice =
-      !shippingAddress || !deliveryDate
-        ? 0
-        : calculateShippingPrice({
-            deliveryDate,
-            itemsPrice,
-            shippingRate: locationRate,
-          });
 
     const netItemsPrice = Math.max(0, itemsPrice - (discount || 0));
     const taxRate = common?.taxRate ?? 0;
@@ -2022,7 +2083,7 @@ export const calcDeliveryDateAndPrice = async ({
       ? 0
       : round2(netItemsPrice * (taxRate / 100));
 
-    const safeShippingPrice = shippingPrice ?? 0;
+    const safeShippingPrice = round2(Number(shippingPrice) || 0);
     const totalPrice = round2(netItemsPrice + safeShippingPrice + taxPrice);
 
     return {

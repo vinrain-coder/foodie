@@ -13,6 +13,7 @@ import SupportTicket from "../db/models/support-ticket.model";
 import Affiliate from "../db/models/affiliate.model";
 import AffiliatePayout from "../db/models/affiliate-payout.model";
 import WalletPayout from "../db/models/wallet-payout.model";
+import Restaurant from "../db/models/restaurant.model";
 import {
   canAccessAdminDashboard,
   isRestaurantRole,
@@ -23,7 +24,16 @@ import mongoose from "mongoose";
 
 export type AdminNotificationItem = {
   id: string;
-  type: "order" | "review" | "stock-subscription" | "customer" | "support" | "affiliate" | "affiliate-payout" | "wallet-payout";
+  type:
+    | "order"
+    | "review"
+    | "stock-subscription"
+    | "customer"
+    | "support"
+    | "affiliate"
+    | "affiliate-payout"
+    | "wallet-payout"
+    | "restaurant";
   title: string;
   description: string;
   href: string;
@@ -133,6 +143,20 @@ type WalletPayoutNotificationSource = {
   } | null;
 };
 
+type RestaurantNotificationSource = {
+  _id: { toString(): string } | string;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+  name: string;
+  status: "pending" | "approved" | "rejected";
+  ownerId?:
+    | {
+        name?: string;
+        email?: string;
+      }
+    | null;
+};
+
 const asId = (value: { toString(): string } | string) => value.toString();
 const asDate = (value: Date | string) => new Date(value).toISOString();
 
@@ -178,7 +202,17 @@ export async function getAdminNotificationFeed(
   const readIds = state?.readIds || [];
   const readIdsSet = new Set(readIds);
 
-  const [orders, reviews, subscriptions, customers, supportTickets, affiliates, payouts, walletPayouts] = (await Promise.all([
+  const [
+    orders,
+    reviews,
+    subscriptions,
+    customers,
+    supportTickets,
+    affiliates,
+    payouts,
+    walletPayouts,
+    restaurantApplications,
+  ] = (await Promise.all([
     Order.find({
       status: { $nin: ["cancelled", "return_requested"] },
       ...restaurantFilter,
@@ -224,6 +258,11 @@ export async function getAdminNotificationFeed(
       .sort({ createdAt: -1 })
       .limit(limit)
       .lean(),
+    Restaurant.find({ status: "pending" })
+      .populate("ownerId", "name email")
+      .sort({ updatedAt: -1 })
+      .limit(limit)
+      .lean(),
   ])) as [
     OrderNotificationSource[],
     ReviewNotificationSource[],
@@ -233,6 +272,7 @@ export async function getAdminNotificationFeed(
     AffiliateNotificationSource[],
     AffiliatePayoutNotificationSource[],
     WalletPayoutNotificationSource[],
+    RestaurantNotificationSource[],
   ];
 
   let items: AdminNotificationItem[] = [
@@ -339,6 +379,35 @@ export async function getAdminNotificationFeed(
         createdAt: asDate(payout.createdAt),
         isUnread: (lastSeenAt ? new Date(payout.createdAt) > lastSeenAt : true) && !readIdsSet.has(id),
         meta: payout.status === "pending" ? "Payout pending" : `Status: ${payout.status}`,
+      };
+    }),
+    ...restaurantApplications.map((application) => {
+      const eventDate = new Date(application.updatedAt);
+      const id = `restaurant-${asId(application._id)}-${eventDate.toISOString()}`;
+      const ownerName =
+        application.ownerId &&
+        typeof application.ownerId === "object" &&
+        "name" in application.ownerId
+          ? (application.ownerId.name || "A restaurant owner")
+          : "A restaurant owner";
+
+      const ownerEmail =
+        application.ownerId &&
+        typeof application.ownerId === "object" &&
+        "email" in application.ownerId
+          ? application.ownerId.email
+          : undefined;
+
+      return {
+        id,
+        type: "restaurant" as const,
+        title: "Restaurant application pending review",
+        description: `${ownerName} submitted or updated "${application.name}"${ownerEmail ? ` (${ownerEmail})` : ""}.`,
+        href: `/admin/restaurants/${asId(application._id)}`,
+        createdAt: eventDate.toISOString(),
+        isUnread:
+          (lastSeenAt ? eventDate > lastSeenAt : true) && !readIdsSet.has(id),
+        meta: "Application pending",
       };
     }),
     ...(await Order.find({ status: "cancelled" })

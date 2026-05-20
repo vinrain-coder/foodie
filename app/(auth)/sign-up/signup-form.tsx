@@ -113,7 +113,7 @@ export function SignUpForm() {
             Create your account
           </CardTitle>
           <CardDescription className="text-sm text-muted-foreground">
-            Join <span className="font-semibold mx-0.5">ShoePedi</span> and
+            Join <span className="font-semibold mx-0.5">TumaFood</span> and
             start your style journey
           </CardDescription>
         </CardHeader>

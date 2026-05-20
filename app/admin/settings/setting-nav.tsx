@@ -5,7 +5,6 @@ import {
   ImageIcon,
   Info,
   ListTree,
-  Package,
   SettingsIcon,
 } from "lucide-react";
 
@@ -71,11 +70,6 @@ const SettingNav = () => {
             name: "Payments",
             hash: "setting-payment-methods",
             icon: <CreditCard className="h-4 w-4" />,
-          },
-          {
-            name: "Delivery",
-            hash: "setting-delivery-dates",
-            icon: <Package className="h-4 w-4" />,
           },
           {
             name: "Affiliate",

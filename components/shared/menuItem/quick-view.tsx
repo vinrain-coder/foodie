@@ -13,7 +13,6 @@ import MarkdownRenderer from "../markdown-renderer";
 import ReadMore from "../read-more";
 import { Badge } from "@/components/ui/badge";
 import Price from "./price";
-import SelectVariant from "./select-variant";
 import MenuItemGallery from "./menu-item-gallery";
 import AddToCart from "./add-to-cart";
 

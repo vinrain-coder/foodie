@@ -119,16 +119,13 @@ export const mapSerializedOrderToReceiptDocument = ({
   const shipping = normalizeMoney(order.shippingPrice);
   const tax = normalizeMoney(order.taxPrice);
   const discount = normalizeMoney(order.coupon?.discountAmount || 0);
-  const computedFinalTotal = normalizeMoney(subtotal + shipping + tax - discount);
+  const computedFinalTotal = normalizeMoney(
+    subtotal + shipping + tax - discount,
+  );
 
   const items = order.items.map((item, index) => ({
     id: `${item.clientId || item.slug || index}`,
     name: item.name,
-    variant: [item.size ? `Size ${item.size}` : null, item.color || null]
-      .filter(Boolean)
-      .join(" / "),
-    size: item.size,
-    color: item.color,
     quantity: item.quantity,
     unitPrice: normalizeMoney(item.price),
     total: normalizeMoney(item.price * item.quantity),
@@ -204,14 +201,17 @@ export const mapSerializedOrderToReceiptDocument = ({
     returnPolicy:
       "Returns accepted within 14 days of delivery for unused items in original packaging.",
     thankYouMessage:
-      "Thank you for shopping with ShoePedi. We appreciate your trust.",
+      "Thank you for shopping with TumaFood. We appreciate your trust.",
     qrCodeUrl: undefined,
     barcodeUrl: undefined,
     locale,
     currency,
   };
 
-  if (!data.payment.providerReference && typeof authorization?.last4 === "string") {
+  if (
+    !data.payment.providerReference &&
+    typeof authorization?.last4 === "string"
+  ) {
     data.payment.providerReference = `Card •••• ${authorization.last4}`;
   }
 
@@ -219,9 +219,7 @@ export const mapSerializedOrderToReceiptDocument = ({
 };
 
 export const statusLabel = (status: string) =>
-  status
-    .replace(/_/g, " ")
-    .replace(/\b\w/g, (char) => char.toUpperCase());
+  status.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
 
 export const fallbackDateTime = (dateInput: Date | string | undefined) => {
   if (!dateInput) return "-";

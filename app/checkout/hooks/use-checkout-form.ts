@@ -30,7 +30,10 @@ import {
   getPlacesByCounty,
 } from "@/lib/actions/delivery-location.actions";
 import { normalizeAddressBookEntries } from "@/lib/address-book";
-import { calculateFutureDate } from "@/lib/utils";
+import {
+  calculateFutureMinutes,
+  FOOD_DELIVERY_ETA_MINUTES,
+} from "@/lib/utils";
 import { ShippingAddressSchema } from "@/lib/validator";
 import { AddressBookEntry, ShippingAddress } from "@/types";
 import { IMenuItem } from "@/lib/db/models/menu.item.model";
@@ -111,8 +114,6 @@ export const useCheckoutForm = (
   // Status flags
   const [isAddressSelected, setIsAddressSelected] = useState<boolean>(false);
   const [isPaymentMethodSelected, setIsPaymentMethodSelected] =
-    useState<boolean>(false);
-  const [isDeliveryDateSelected, setIsDeliveryDateSelected] =
     useState<boolean>(false);
 
   // Address Book state
@@ -609,19 +610,25 @@ export const useCheckoutForm = (
 
     try {
       setIsPlacingOrder(true);
+      const defaultDeliveryDateIndex =
+        availableDeliveryDates.length > 0
+          ? availableDeliveryDates.reduce((fastestIndex, option, index, arr) =>
+              option.daysToDeliver < arr[fastestIndex].daysToDeliver
+                ? index
+                : fastestIndex,
+            0)
+          : 0;
+
       const res = await createOrder({
         items,
         shippingAddress: shippingAddress!,
         note: note?.trim() || undefined,
         userEmail: shippingAddress?.email || (session?.user?.email as string),
         userName: shippingAddress?.fullName || (session?.user?.name as string),
-        expectedDeliveryDate: calculateFutureDate(
-          availableDeliveryDates[
-            deliveryDateIndex ?? availableDeliveryDates.length - 1
-          ].daysToDeliver,
+        expectedDeliveryDate: calculateFutureMinutes(
+          FOOD_DELIVERY_ETA_MINUTES,
         ),
-        deliveryDateIndex:
-          deliveryDateIndex ?? availableDeliveryDates.length - 1,
+        deliveryDateIndex: deliveryDateIndex ?? defaultDeliveryDateIndex,
         paymentMethod,
         itemsPrice,
         shippingPrice,
@@ -875,7 +882,6 @@ export const useCheckoutForm = (
     selectedPlace,
     isAddressSelected,
     isPaymentMethodSelected,
-    isDeliveryDateSelected,
     canPlaceOrder,
     placeOrderBlockReason,
 
@@ -899,6 +905,5 @@ export const useCheckoutForm = (
     handlePaymentFailure,
     setIsAddressSelected,
     setIsPaymentMethodSelected,
-    setIsDeliveryDateSelected,
   };
 };

@@ -12,7 +12,7 @@ export const ourFileRouter = {
       maxFileCount: 6,
     },
     video: {
-      maxFileSize: "2MB",
+      maxFileSize: "4MB",
       maxFileCount: 2,
     },
   })
@@ -28,7 +28,7 @@ export const ourFileRouter = {
   // Categories
   categories: f({
     image: {
-      maxFileSize: "2MB",
+      maxFileSize: "4MB",
       maxFileCount: 1,
     },
   })
@@ -44,7 +44,7 @@ export const ourFileRouter = {
   //carousels
   carousels: f({
     image: {
-      maxFileSize: "2MB",
+      maxFileSize: "4MB",
       maxFileCount: 1,
     },
   })
@@ -60,7 +60,7 @@ export const ourFileRouter = {
   // logos
   logos: f({
     image: {
-      maxFileSize: "2MB",
+      maxFileSize: "4MB",
       maxFileCount: 1,
     },
   })
@@ -76,7 +76,7 @@ export const ourFileRouter = {
   // tags
   tags: f({
     image: {
-      maxFileSize: "2MB",
+      maxFileSize: "4MB",
       maxFileCount: 1,
     },
   })
@@ -92,7 +92,7 @@ export const ourFileRouter = {
   // blogs
   blogs: f({
     image: {
-      maxFileSize: "2MB",
+      maxFileSize: "4MB",
       maxFileCount: 1,
     },
   })
@@ -108,7 +108,7 @@ export const ourFileRouter = {
   // reviews
   reviews: f({
     image: {
-      maxFileSize: "2MB",
+      maxFileSize: "4MB",
       maxFileCount: 1,
     },
   })
@@ -124,7 +124,7 @@ export const ourFileRouter = {
   // pages
   pages: f({
     image: {
-      maxFileSize: "2MB",
+      maxFileSize: "4MB",
       maxFileCount: 1,
     },
   })
@@ -140,7 +140,7 @@ export const ourFileRouter = {
   // restaurants
   restaurants: f({
     image: {
-      maxFileSize: "2MB",
+      maxFileSize: "4MB",
       maxFileCount: 2,
     },
   })

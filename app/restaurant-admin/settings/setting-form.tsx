@@ -7,7 +7,6 @@ import { ClientSetting, ISettingInput } from "@/types";
 import { updateSetting } from "@/lib/actions/setting.actions";
 import useSetting from "@/hooks/use-setting-store";
 import PaymentMethodForm from "./payment-method-form";
-import DeliveryDateForm from "./delivery-date-form";
 import SiteInfoForm from "./site-info-form";
 import CommonForm from "./common-form";
 import CarouselForm from "./carousel-form";
@@ -62,8 +61,6 @@ const SettingForm = ({ setting }: { setting: ISettingInput }) => {
           <HeaderMenuForm id="setting-header-menus" form={form} />
 
           <PaymentMethodForm id="setting-payment-methods" form={form} />
-
-          <DeliveryDateForm id="setting-delivery-dates" form={form} />
           <AffiliateForm id="setting-affiliate" form={form} />
 
           <ValidationSummary errors={form.formState.errors as any} />

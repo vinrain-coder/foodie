@@ -137,10 +137,20 @@ export default async function MenuItemDetails({ params, searchParams }: Props) {
   const frequentlyBoughtTogetherPromise = getFrequentlyBoughtTogether(
     menuItem._id.toString(),
   );
-  const restaurantDetailsPromise =
+
+  const restaurantId =
     typeof menuItem.restaurant === "string"
-      ? getRestaurantSummaryForMenuItem(menuItem.restaurant)
-      : null;
+      ? menuItem.restaurant
+      : menuItem.restaurant && typeof menuItem.restaurant === "object"
+        ? String(
+            (menuItem.restaurant as unknown as { _id?: string })._id || "",
+          )
+        : null;
+
+  const restaurantDetailsPromise = getRestaurantSummaryForMenuItem({
+    restaurantId,
+    menuItemId: menuItem._id.toString(),
+  });
   const restaurantDetails = restaurantDetailsPromise
     ? await restaurantDetailsPromise
     : null;

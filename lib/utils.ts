@@ -122,6 +122,12 @@ export function calculateFutureDate(days: number) {
   currentDate.setDate(currentDate.getDate() + days);
   return currentDate;
 }
+
+export const FOOD_DELIVERY_ETA_MINUTES = 30;
+
+export function calculateFutureMinutes(minutes: number) {
+  return new Date(Date.now() + Math.max(0, minutes) * 60 * 1000);
+}
 export function getMonthName(yearMonth: string): string {
   const [year, month] = yearMonth.split("-").map(Number);
   const date = new Date(year, month - 1);

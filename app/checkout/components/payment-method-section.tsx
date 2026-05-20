@@ -16,7 +16,6 @@ interface PaymentMethodSectionProps {
   handleSelectPaymentMethod: () => void;
   setPaymentMethod: (method: string) => void;
   setIsPaymentMethodSelected: (selected: boolean) => void;
-  setIsDeliveryDateSelected: (selected: boolean) => void;
 }
 
 export const PaymentMethodSection = ({
@@ -29,7 +28,6 @@ export const PaymentMethodSection = ({
   handleSelectPaymentMethod,
   setPaymentMethod,
   setIsPaymentMethodSelected,
-  setIsDeliveryDateSelected,
 }: PaymentMethodSectionProps) => {
   if (isPaymentMethodSelected && paymentMethod) {
     return (
@@ -47,7 +45,6 @@ export const PaymentMethodSection = ({
             variant="outline"
             onClick={() => {
               setIsPaymentMethodSelected(false);
-              if (paymentMethod) setIsDeliveryDateSelected(true);
             }}
           >
             Change

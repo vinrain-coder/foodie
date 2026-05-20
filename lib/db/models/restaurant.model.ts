@@ -6,6 +6,7 @@ export interface IRestaurant extends Document {
   ownerId: Types.ObjectId;
   name: string;
   slug: string;
+  menuItems: Types.ObjectId[];
   logo?: string;
   coverImage?: string;
   phone: string;
@@ -46,6 +47,15 @@ const restaurantSchema = new Schema<IRestaurant>(
       unique: true,
       index: true,
     },
+    menuItems: {
+      type: [
+        {
+          type: Schema.Types.ObjectId,
+          ref: "MenuItem",
+        },
+      ],
+      default: [],
+    },
     logo: { type: String, default: "" },
     coverImage: { type: String, default: "" },
     phone: { type: String, required: true, trim: true },
@@ -75,6 +85,7 @@ const restaurantSchema = new Schema<IRestaurant>(
 
 restaurantSchema.index({ ownerId: 1, status: 1 });
 restaurantSchema.index({ status: 1, createdAt: -1 });
+restaurantSchema.index({ menuItems: 1 });
 
 const Restaurant =
   (models.Restaurant as Model<IRestaurant>) ||

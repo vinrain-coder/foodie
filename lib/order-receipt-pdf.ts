@@ -32,5 +32,5 @@ export async function buildOrderInvoicePdf(
 export const getOrderPdfFileName = (
   orderId: string,
   kind: ReceiptDocumentKind = "receipt",
-) => buildReceiptFileName(kind, orderId, "shoepedi");
+) => buildReceiptFileName(kind, orderId, "tumafood");
 

@@ -68,6 +68,16 @@ export default function Footer() {
         ],
       },
       {
+        title: "Restaurants",
+        links: [
+          { label: "Browse Restaurants", href: "/restaurants" },
+          { label: "Delivery Restaurants", href: "/restaurants?service=delivery" },
+          { label: "Pickup Restaurants", href: "/restaurants?service=pickup" },
+          { label: "A-Z Restaurant List", href: "/restaurants?sort=name-asc" },
+          { label: "Restaurant Registration", href: "/restaurant/register" },
+        ],
+      },
+      {
         title: "My Account",
         links: [
           { label: "Account", href: "/account" },
@@ -199,7 +209,7 @@ export default function Footer() {
         </div>
 
         {/* DESKTOP */}
-        <div className="hidden md:grid grid-cols-2 lg:grid-cols-5 gap-12 mb-12">
+        <div className="hidden md:grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-12 mb-12">
           {footerSections.map((section) => (
             <div key={section.title}>
               <h3 className="font-bold text-lg mb-4">{section.title}</h3>

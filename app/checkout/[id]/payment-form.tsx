@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { SerializedOrder } from "@/lib/actions/order.actions";
-import { formatDateTime } from "@/lib/utils";
+import { FOOD_DELIVERY_ETA_MINUTES, formatDateTime } from "@/lib/utils";
 
 import CheckoutFooter from "../checkout-footer";
 import { useRouter } from "next/navigation";
@@ -182,8 +182,8 @@ export default function OrderDetailsForm({
             </div>
             <div className="col-span-2">
               <p>
-                Delivery date:
-                {formatDateTime(expectedDeliveryDate).dateOnly}
+                Arrives in about {FOOD_DELIVERY_ETA_MINUTES} mins (around{" "}
+                {formatDateTime(expectedDeliveryDate).timeOnly})
               </p>
               <ul>
                 {items.map((item) => (

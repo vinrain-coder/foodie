@@ -17,6 +17,18 @@ const withSettingDefaults = (
   const fallback = data.settings[0];
   if (!setting) return fallback;
 
+  const availableDeliveryDates =
+    Array.isArray(setting.availableDeliveryDates) &&
+    setting.availableDeliveryDates.length > 0
+      ? setting.availableDeliveryDates
+      : fallback.availableDeliveryDates;
+
+  const defaultDeliveryDate = availableDeliveryDates.some(
+    (item) => item.name === setting.defaultDeliveryDate,
+  )
+    ? (setting.defaultDeliveryDate as string)
+    : availableDeliveryDates[0]?.name || fallback.defaultDeliveryDate;
+
   return {
     ...fallback,
     ...setting,
@@ -33,6 +45,8 @@ const withSettingDefaults = (
         ...(setting.notifications?.sms ?? {}),
       },
     },
+    availableDeliveryDates,
+    defaultDeliveryDate,
   } as ISettingInput;
 };
 

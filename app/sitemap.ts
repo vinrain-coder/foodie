@@ -36,7 +36,23 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }));
 
   // Dynamic menuItem routes
-  const menuItems = await MenuItem.find({ isPublished: true }, "slug updatedAt");
+  const visibleRestaurants = await Restaurant.find(
+    { status: "approved", isApproved: true, isActive: true },
+    "_id slug updatedAt",
+  );
+  const visibleRestaurantIds = visibleRestaurants.map((restaurant) => restaurant._id);
+
+  const menuItems = await MenuItem.find(
+    {
+      isPublished: true,
+      $or: [
+        { restaurant: { $exists: false } },
+        { restaurant: null },
+        { restaurant: { $in: visibleRestaurantIds } },
+      ],
+    },
+    "slug updatedAt",
+  );
   const menuItemRoutes = menuItems.map((menuItem) => ({
     url: toAbsoluteUrl(site.url, `/menu-item/${menuItem.slug}`),
     lastModified: menuItem.updatedAt || now,
@@ -44,11 +60,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.8,
   }));
 
-  const restaurants = await Restaurant.find(
-    { status: "approved", isApproved: true, isActive: true },
-    "slug updatedAt",
-  );
-  const restaurantRoutes = restaurants.map((restaurant) => ({
+  const restaurantRoutes = visibleRestaurants.map((restaurant) => ({
     url: toAbsoluteUrl(site.url, `/restaurants/${restaurant.slug}`),
     lastModified: restaurant.updatedAt || now,
     changeFrequency: "weekly" as const,

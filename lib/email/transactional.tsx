@@ -541,6 +541,158 @@ export const sendAffiliateResubmittedNotification = async ({
   return { success: true };
 };
 
+export const sendRestaurantLifecycleNotification = async ({
+  to,
+  ownerName,
+  restaurantName,
+  status,
+  adminNote,
+}: {
+  to: string;
+  ownerName: string;
+  restaurantName: string;
+  status:
+    | "submitted"
+    | "resubmitted"
+    | "approved"
+    | "rejected"
+    | "pending"
+    | "suspended"
+    | "activated";
+  adminNote?: string;
+}) => {
+  const { site } = await getSetting();
+
+  const details: { label: string; value: string; isBold?: boolean }[] = [
+    { label: "Restaurant", value: restaurantName, isBold: true },
+  ];
+
+  if (adminNote?.trim()) {
+    details.push({ label: "Admin Note", value: adminNote.trim() });
+  }
+
+  let subject = `Restaurant Application Update - ${site.name}`;
+  let title = "Restaurant Application Update";
+  let intro =
+    "Your restaurant profile status has been updated. Review the latest details below.";
+  let ctaUrl = `${site.url}/restaurant/register`;
+  let ctaLabel = "View Registration Status";
+
+  if (status === "submitted") {
+    subject = `Application Submitted - ${site.name}`;
+    title = "Application Submitted";
+    intro =
+      "Your restaurant application has been submitted successfully and is now pending review.";
+  } else if (status === "resubmitted") {
+    subject = `Application Resubmitted - ${site.name}`;
+    title = "Application Resubmitted";
+    intro =
+      "Your restaurant application was resubmitted and has re-entered admin review.";
+  } else if (status === "approved") {
+    subject = `Restaurant Approved - ${site.name}`;
+    title = "Restaurant Approved";
+    intro =
+      "Great news. Your restaurant has been approved and is now ready for operations.";
+    ctaUrl = `${site.url}/restaurant-admin`;
+    ctaLabel = "Open Restaurant Dashboard";
+  } else if (status === "rejected") {
+    subject = `Restaurant Application Rejected - ${site.name}`;
+    title = "Application Needs Updates";
+    intro =
+      "Your restaurant application was reviewed but requires updates before approval.";
+  } else if (status === "pending") {
+    subject = `Restaurant Application Pending Review - ${site.name}`;
+    title = "Application Pending";
+    intro =
+      "Your restaurant application is currently pending review by the admin team.";
+  } else if (status === "suspended") {
+    subject = `Restaurant Suspended - ${site.name}`;
+    title = "Restaurant Suspended";
+    intro =
+      "Your restaurant has been suspended and is currently hidden from customers.";
+    ctaUrl = `${site.url}/restaurant-admin/settings`;
+    ctaLabel = "Review Restaurant Settings";
+  } else if (status === "activated") {
+    subject = `Restaurant Reactivated - ${site.name}`;
+    title = "Restaurant Reactivated";
+    intro =
+      "Your restaurant has been reactivated and is visible to customers again.";
+    ctaUrl = `${site.url}/restaurant-admin`;
+    ctaLabel = "Open Restaurant Dashboard";
+  }
+
+  await sendEmail({
+    to,
+    subject,
+    html: genericTransactionalTemplate({
+      title,
+      name: ownerName,
+      intro,
+      details,
+      ctaLabel,
+      ctaUrl,
+      siteName: site.name,
+      siteCopyright: site.copyright,
+    }),
+  });
+
+  console.log(`Restaurant ${status} notification sent to ${to}`);
+  return { success: true };
+};
+
+export const sendRestaurantOrderCreatedNotification = async ({
+  to,
+  ownerName,
+  restaurantName,
+  orderId,
+  trackingNumber,
+  totalPrice,
+  paymentMethod,
+  itemCount,
+  isPaid,
+}: {
+  to: string;
+  ownerName: string;
+  restaurantName: string;
+  orderId: string;
+  trackingNumber: string;
+  totalPrice: number;
+  paymentMethod: string;
+  itemCount: number;
+  isPaid: boolean;
+}) => {
+  const { site } = await getSetting();
+  const formattedTotal = new Intl.NumberFormat("en-KE", {
+    style: "currency",
+    currency: "KES",
+  }).format(totalPrice);
+
+  await sendEmail({
+    to,
+    subject: `New order for ${restaurantName} - ${site.name}`,
+    html: genericTransactionalTemplate({
+      title: "New Restaurant Order",
+      name: ownerName,
+      intro: `You received a new order for ${restaurantName}.`,
+      details: [
+        { label: "Order ID", value: orderId.slice(-8).toUpperCase(), isBold: true },
+        { label: "Tracking Number", value: trackingNumber },
+        { label: "Items", value: `${itemCount}` },
+        { label: "Total", value: formattedTotal, isBold: true },
+        { label: "Payment Method", value: paymentMethod },
+        { label: "Payment Status", value: isPaid ? "Paid" : "Pending" },
+      ],
+      ctaLabel: "View Order",
+      ctaUrl: `${site.url}/restaurant-admin/orders/${orderId}`,
+      siteName: site.name,
+      siteCopyright: site.copyright,
+    }),
+  });
+
+  console.log(`Restaurant order notification sent to ${to} for ${orderId}`);
+  return { success: true };
+};
+
 export const sendWalletPayoutStatusNotification = async ({
   email,
   name,

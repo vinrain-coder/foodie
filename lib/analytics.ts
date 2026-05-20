@@ -1,8 +1,8 @@
 export type AnalyticsDeviceType = "desktop" | "mobile" | "tablet" | "bot" | "unknown";
 
 export const TRACKED_ANALYTICS_COOKIE = {
-  visitor: "shoepedi_visitor",
-  session: "shoepedi_session",
+  visitor: "tumafood_visitor",
+  session: "tumafood_session",
 } as const;
 
 export function parseUserAgent(userAgent: string) {

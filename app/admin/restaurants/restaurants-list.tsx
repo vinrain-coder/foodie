@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
+  deleteRestaurantByAdmin,
   updateRestaurantActivationStatus,
   updateRestaurantApplicationStatus,
 } from "@/lib/actions/restaurant.actions";
@@ -120,12 +121,15 @@ export default function RestaurantApplicationsList({
   totalApplications: number;
 }) {
   const [list, setList] = useState(applications);
+  const [totalCount, setTotalCount] = useState(totalApplications);
   const [isUpdating, setIsUpdating] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [notesById, setNotesById] = useState<Record<string, string>>({});
 
   useEffect(() => {
     setList(applications);
-  }, [applications]);
+    setTotalCount(totalApplications);
+  }, [applications, totalApplications]);
 
   async function handleStatusUpdate(
     id: string,
@@ -202,13 +206,27 @@ export default function RestaurantApplicationsList({
     }
   }
 
+  async function handleDeleteRestaurant(id: string) {
+    setIsDeleting(id);
+    const res = await deleteRestaurantByAdmin(id);
+    setIsDeleting(null);
+
+    if (res.success) {
+      toast.success(res.message);
+      setList((prev) => prev.filter((item) => item._id !== id));
+      setTotalCount((prev) => Math.max(0, prev - 1));
+    } else {
+      toast.error(res.message);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
-          {totalApplications === 0
+          {totalCount === 0
             ? "No restaurant applications found"
-            : `Showing ${applications.length} of ${totalApplications} applications`}
+            : `Showing ${list.length} of ${totalCount} applications`}
         </p>
       </div>
 
@@ -301,9 +319,51 @@ export default function RestaurantApplicationsList({
                       {new Date(item.createdAt).toLocaleDateString()}
                     </TableCell>
                     <TableCell className="text-right space-x-2">
-                      <Button asChild size="sm" variant="outline" disabled={isUpdating === item._id}>
+                      <Button
+                        asChild
+                        size="sm"
+                        variant="outline"
+                        disabled={isUpdating === item._id || isDeleting === item._id}
+                      >
                         <Link href={`/admin/restaurants/${item._id}`}>Edit</Link>
                       </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            disabled={isUpdating === item._id || isDeleting === item._id}
+                          >
+                            {isDeleting === item._id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              "Delete"
+                            )}
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete this restaurant?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This permanently deletes the restaurant and all of its menu
+                              items. This action cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel disabled={isDeleting === item._id}>
+                              Cancel
+                            </AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => handleDeleteRestaurant(item._id)}
+                              disabled={isDeleting === item._id}
+                            >
+                              {isDeleting === item._id
+                                ? "Deleting..."
+                                : "Yes, delete"}
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                       {item.status === "pending" && (
                         <>
                           <ConfirmStatusActionButton

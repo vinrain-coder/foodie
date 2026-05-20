@@ -13,7 +13,11 @@ const SettingPage = async () => {
   const result = await getRestaurantSettingsForOwner();
 
   if (!result.success || !result.data) {
-    redirect("/restaurant/register");
+    const message = (result.message || "").toLowerCase();
+    if (message.includes("profile not found")) {
+      redirect("/restaurant/register");
+    }
+    redirect("/restaurant-admin/overview");
   }
 
   return (

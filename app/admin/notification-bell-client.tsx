@@ -9,6 +9,7 @@ import {
   Loader2,
   Package,
   Star,
+  Store,
   UserPlus,
   Warehouse,
   MessageSquareMore,
@@ -52,6 +53,7 @@ const iconMap = {
   affiliate: Users,
   "affiliate-payout": HandCoins,
   "wallet-payout": HandCoins,
+  restaurant: Store,
 } as const;
 
 const getRelativeTimestamp = (date: Date, now: number) => {

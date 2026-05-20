@@ -14,8 +14,106 @@ import { UTApi } from "uploadthing/server";
 import { notFound } from "next/navigation";
 import { MenuItemInputSchema, MenuItemUpdateSchema } from "../validator";
 import { getStaffScope } from "@/lib/staff-scope";
+import Restaurant from "@/lib/db/models/restaurant.model";
 
 const utapi = new UTApi(); // Initialize UTApi instance
+
+function normalizeRestaurantId(input: unknown): string | null {
+  if (!input) return null;
+  const id = String(input).trim();
+  if (!mongoose.Types.ObjectId.isValid(id)) return null;
+  return id;
+}
+
+async function syncRestaurantMenuItemLink({
+  menuItemId,
+  previousRestaurantId,
+  nextRestaurantId,
+}: {
+  menuItemId: string;
+  previousRestaurantId?: string | null;
+  nextRestaurantId?: string | null;
+}) {
+  const normalizedPrevious = normalizeRestaurantId(previousRestaurantId);
+  const normalizedNext = normalizeRestaurantId(nextRestaurantId);
+  const menuItemObjectId = new mongoose.Types.ObjectId(menuItemId);
+
+  if (
+    normalizedPrevious &&
+    (!normalizedNext || normalizedPrevious !== normalizedNext)
+  ) {
+    await Restaurant.updateOne(
+      { _id: new mongoose.Types.ObjectId(normalizedPrevious) },
+      { $pull: { menuItems: menuItemObjectId } },
+    );
+  }
+
+  if (normalizedNext) {
+    await Restaurant.updateOne(
+      { _id: new mongoose.Types.ObjectId(normalizedNext) },
+      { $addToSet: { menuItems: menuItemObjectId } },
+    );
+  }
+}
+
+async function restaurantExists(restaurantId: string): Promise<boolean> {
+  const exists = await Restaurant.exists({
+    _id: new mongoose.Types.ObjectId(restaurantId),
+  });
+  return Boolean(exists);
+}
+
+async function validateMenuItemNameAgainstOtherRestaurants({
+  menuItemName,
+  restaurantId,
+}: {
+  menuItemName: string;
+  restaurantId: string;
+}): Promise<string | null> {
+  const normalized = menuItemName.trim();
+  if (!normalized) return null;
+
+  const conflictingRestaurant = await Restaurant.findOne({
+    _id: { $ne: new mongoose.Types.ObjectId(restaurantId) },
+    name: { $regex: new RegExp(`^${escapeRegExp(normalized)}$`, "i") },
+  })
+    .select("name")
+    .lean();
+
+  if (!conflictingRestaurant) return null;
+
+  return `Menu item name conflicts with another restaurant name (${conflictingRestaurant.name}).`;
+}
+
+async function getHiddenRestaurantIdsForStorefront() {
+  const hiddenRestaurants = await Restaurant.find({
+    $or: [
+      { status: { $ne: "approved" } },
+      { isApproved: false },
+      { isActive: false },
+    ],
+  })
+    .select("_id")
+    .lean();
+
+  return hiddenRestaurants.map((restaurant) => restaurant._id);
+}
+
+async function getStorefrontVisibilityFilter() {
+  const hiddenRestaurantIds = await getHiddenRestaurantIdsForStorefront();
+
+  if (hiddenRestaurantIds.length === 0) {
+    return {};
+  }
+
+  return {
+    $or: [
+      { restaurant: { $exists: false } },
+      { restaurant: null },
+      { restaurant: { $nin: hiddenRestaurantIds } },
+    ],
+  };
+}
 
 // CREATE
 export async function createMenuItem(
@@ -32,12 +130,48 @@ export async function createMenuItem(
       };
     }
     const menuItem = validated.data;
-    const payload =
+    const restaurantId =
       scope.role === "RESTAURANT"
-        ? { ...menuItem, restaurant: scope.restaurantId }
-        : menuItem;
+        ? scope.restaurantId
+        : normalizeRestaurantId(menuItem.restaurant);
 
-    await MenuItem.create(payload);
+    if (!restaurantId) {
+      return {
+        success: false,
+        message: "Restaurant is required",
+        errors: { restaurant: ["Restaurant is required"] },
+      };
+    }
+    if (!(await restaurantExists(restaurantId))) {
+      return {
+        success: false,
+        message: "Selected restaurant does not exist",
+        errors: { restaurant: ["Selected restaurant does not exist"] },
+      };
+    }
+
+    const nameConflictMessage = await validateMenuItemNameAgainstOtherRestaurants({
+      menuItemName: menuItem.name,
+      restaurantId,
+    });
+    if (nameConflictMessage) {
+      return {
+        success: false,
+        message: nameConflictMessage,
+        errors: { name: [nameConflictMessage] },
+      };
+    }
+
+    const created = await MenuItem.create({
+      ...menuItem,
+      restaurant: restaurantId,
+    });
+
+    await syncRestaurantMenuItemLink({
+      menuItemId: created._id.toString(),
+      nextRestaurantId: restaurantId,
+    });
+
     revalidatePath("/admin/menu-items");
     updateTag("menuItems");
     return {
@@ -77,13 +211,61 @@ export async function updateMenuItem(
         ? { _id: menuItem._id, restaurant: scope.restaurantId }
         : { _id: menuItem._id };
 
-    const updated = await MenuItem.findOneAndUpdate(filter, menuItem, {
-      new: true,
+    const existing = await MenuItem.findOne(filter).select("_id restaurant");
+    if (!existing) {
+      throw new Error("Menu item not found or unauthorized");
+    }
+
+    const previousRestaurantId = normalizeRestaurantId(existing.restaurant);
+    const nextRestaurantId =
+      scope.role === "RESTAURANT"
+        ? scope.restaurantId
+        : normalizeRestaurantId(menuItem.restaurant) || previousRestaurantId;
+
+    if (!nextRestaurantId) {
+      return {
+        success: false,
+        message: "Restaurant is required",
+        errors: { restaurant: ["Restaurant is required"] },
+      };
+    }
+    if (!(await restaurantExists(nextRestaurantId))) {
+      return {
+        success: false,
+        message: "Selected restaurant does not exist",
+        errors: { restaurant: ["Selected restaurant does not exist"] },
+      };
+    }
+
+    const nameConflictMessage = await validateMenuItemNameAgainstOtherRestaurants({
+      menuItemName: menuItem.name,
+      restaurantId: nextRestaurantId,
     });
+    if (nameConflictMessage) {
+      return {
+        success: false,
+        message: nameConflictMessage,
+        errors: { name: [nameConflictMessage] },
+      };
+    }
+
+    const updated = await MenuItem.findOneAndUpdate(
+      filter,
+      { ...menuItem, restaurant: nextRestaurantId },
+      {
+        new: true,
+      },
+    );
 
     if (!updated) {
       throw new Error("Menu item not found or unauthorized");
     }
+
+    await syncRestaurantMenuItemLink({
+      menuItemId: updated._id.toString(),
+      previousRestaurantId,
+      nextRestaurantId,
+    });
 
     revalidatePath("/admin/menu-items");
     updateTag("menuItems");
@@ -108,6 +290,7 @@ export async function deleteMenuItem(id: string) {
 
     const menuItem = await MenuItem.findOne(filter);
     if (!menuItem) throw new Error("Menu item not found");
+    const previousRestaurantId = normalizeRestaurantId(menuItem.restaurant);
 
     // Delete images from UploadThing
     if (menuItem.images && menuItem.images.length > 0) {
@@ -123,6 +306,11 @@ export async function deleteMenuItem(id: string) {
 
     // Delete menuItem from the database
     await MenuItem.findOneAndDelete(filter);
+    await syncRestaurantMenuItemLink({
+      menuItemId: menuItem._id.toString(),
+      previousRestaurantId,
+      nextRestaurantId: null,
+    });
 
     revalidatePath("/admin/menu-items");
     updateTag("menuItems");
@@ -134,6 +322,29 @@ export async function deleteMenuItem(id: string) {
   } catch (error) {
     return { success: false, message: formatError(error) };
   }
+}
+
+export async function getRestaurantsForMenuItemInput() {
+  "use cache: private";
+  cacheLife("minutes");
+
+  const scope = await getStaffScope();
+  await connectToDatabase();
+
+  const match =
+    scope.role === "RESTAURANT"
+      ? { _id: new mongoose.Types.ObjectId(scope.restaurantId) }
+      : { status: "approved", isApproved: true };
+
+  const restaurants = await Restaurant.find(match)
+    .select("_id name")
+    .sort({ name: 1 })
+    .lean();
+
+  return restaurants.map((restaurant) => ({
+    _id: restaurant._id.toString(),
+    name: restaurant.name,
+  }));
 }
 
 // GET ONE PRODUCT BY ID
@@ -159,9 +370,13 @@ export async function getMenuItemsByIds(menuItemIds: string[]) {
   cacheLife("hours");
   cacheTag("menuItems");
   await connectToDatabase();
+  const storefrontVisibilityFilter = await getStorefrontVisibilityFilter();
 
   const objectIds = menuItemIds.map((id) => new mongoose.Types.ObjectId(id));
-  const menuItems = await MenuItem.find({ _id: { $in: objectIds } }).lean();
+  const menuItems = await MenuItem.find({
+    _id: { $in: objectIds },
+    ...storefrontVisibilityFilter,
+  }).lean();
 
   const safeMenuItems = menuItems.map((menuItem) => ({
     ...menuItem,
@@ -396,8 +611,15 @@ export async function getAllCategories(): Promise<string[]> {
   cacheLife("hours");
   cacheTag("menuItems");
   await connectToDatabase();
+  const storefrontVisibilityFilter = await getStorefrontVisibilityFilter();
   const categories = await MenuItem.aggregate([
-    { $match: { isPublished: true, category: { $exists: true, $ne: "" } } },
+    {
+      $match: {
+        isPublished: true,
+        category: { $exists: true, $ne: "" },
+        ...storefrontVisibilityFilter,
+      },
+    },
     { $project: { category: { $trim: { input: { $toLower: "$category" } } } } },
     { $group: { _id: "$category" } },
     { $sort: { _id: 1 } },
@@ -456,8 +678,9 @@ export async function getMenuItemsForCard({
   cacheLife("hours");
   cacheTag("menuItems");
   await connectToDatabase();
+  const storefrontVisibilityFilter = await getStorefrontVisibilityFilter();
   const menuItems = await MenuItem.find(
-    { tags: { $in: [tag] }, isPublished: true },
+    { tags: { $in: [tag] }, isPublished: true, ...storefrontVisibilityFilter },
     {
       name: 1,
       href: { $concat: ["/menuItem/", "$slug"] },
@@ -484,9 +707,11 @@ export async function getMenuItemsByTag({
   cacheLife("hours");
   cacheTag("menuItems");
   await connectToDatabase();
+  const storefrontVisibilityFilter = await getStorefrontVisibilityFilter();
   const menuItems = await MenuItem.find({
     tags: { $in: [tag] },
     isPublished: true,
+    ...storefrontVisibilityFilter,
   })
     .sort({ createdAt: "desc" })
     .limit(limit);
@@ -499,8 +724,12 @@ export async function getFrequentlyBoughtTogether(menuItemId: string) {
   cacheTag("menuItems", "orders");
   try {
     await connectToDatabase();
+    const storefrontVisibilityFilter = await getStorefrontVisibilityFilter();
 
-    const menuItem = await MenuItem.findById(menuItemId).lean();
+    const menuItem = await MenuItem.findOne({
+      _id: menuItemId,
+      ...storefrontVisibilityFilter,
+    }).lean();
     if (!menuItem) return [];
 
     const ordersWithCurrentMenuItem = await Order.find({
@@ -535,6 +764,7 @@ export async function getFrequentlyBoughtTogether(menuItemId: string) {
       const menuItems = await MenuItem.find({
         _id: { $in: topMenuItemIds },
         isPublished: true,
+        ...storefrontVisibilityFilter,
       }).lean();
       frequentlyBoughtTogether = menuItems as unknown as IMenuItem[];
     }
@@ -545,6 +775,7 @@ export async function getFrequentlyBoughtTogether(menuItemId: string) {
         category: menuItem.category,
         _id: { $ne: menuItemId, $nin: topMenuItemIds },
         isPublished: true,
+        ...storefrontVisibilityFilter,
       })
         .sort({ numSales: -1 })
         .limit(2 - frequentlyBoughtTogether.length)
@@ -568,7 +799,12 @@ export async function getMenuItemBySlug(slug: string) {
   cacheLife("hours");
   cacheTag("menuItems");
   await connectToDatabase();
-  const menuItem = await MenuItem.findOne({ slug, isPublished: true });
+  const storefrontVisibilityFilter = await getStorefrontVisibilityFilter();
+  const menuItem = await MenuItem.findOne({
+    slug,
+    isPublished: true,
+    ...storefrontVisibilityFilter,
+  });
   if (!menuItem) return notFound();
   return JSON.parse(JSON.stringify(menuItem)) as IMenuItem;
 }
@@ -594,11 +830,13 @@ export async function getRelatedMenuItemsByCategory({
   limit = limit || pageSize;
 
   await connectToDatabase();
+  const storefrontVisibilityFilter = await getStorefrontVisibilityFilter();
   const skipAmount = (Number(page) - 1) * limit;
   const conditions = {
     isPublished: true,
     category,
     _id: { $ne: menuItemId },
+    ...storefrontVisibilityFilter,
   };
   const menuItems = await MenuItem.find(conditions)
     .sort({ numSales: "desc" })
@@ -645,6 +883,7 @@ export async function getAllMenuItems({
   const skip = pageLimit * (page - 1);
 
   await connectToDatabase();
+  const storefrontVisibilityFilter = await getStorefrontVisibilityFilter();
 
   const queryFilter =
     query && query !== "all"
@@ -716,6 +955,7 @@ export async function getAllMenuItems({
 
   const filters = {
     ...isPublishedFilter,
+    ...storefrontVisibilityFilter,
     ...restaurantFilter,
     ...queryFilter,
     ...categoryFilter,
@@ -827,10 +1067,11 @@ export async function getAllTags() {
   cacheTag("menuItems");
 
   await connectToDatabase();
+  const storefrontVisibilityFilter = await getStorefrontVisibilityFilter();
 
   const tags = await MenuItem.aggregate([
     // Ensure tags exist and are not empty
-    { $match: { tags: { $exists: true, $ne: [] } } },
+    { $match: { tags: { $exists: true, $ne: [] }, ...storefrontVisibilityFilter } },
 
     // Unwind the tags array
     { $unwind: "$tags" },
@@ -958,10 +1199,12 @@ export async function getMenuItemsByCategory({
   cacheTag("menuItems");
 
   await connectToDatabase();
+  const storefrontVisibilityFilter = await getStorefrontVisibilityFilter();
 
   const menuItems = await MenuItem.find({
     category: { $regex: new RegExp(`^${category}$`, "i") }, // case-insensitive match
     isPublished: true,
+    ...storefrontVisibilityFilter,
   })
     .sort({ createdAt: -1 }) // newest first
     .limit(limit);

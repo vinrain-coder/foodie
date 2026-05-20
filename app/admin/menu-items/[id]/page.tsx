@@ -5,6 +5,7 @@ import Link from "next/link";
 import MenuItemForm from "../menu-item-form";
 import { Metadata } from "next";
 import { getAllCategoriesForAdminMenuItemInput } from "@/lib/actions/category.actions";
+import { getRestaurantsForMenuItemInput } from "@/lib/actions/menu.item.actions";
 
 export const metadata: Metadata = {
   title: "Edit MenuItem",
@@ -24,7 +25,10 @@ const UpdateMenuItem = async (props: UpdateMenuItemProps) => {
   const menuItem = await getMenuItemById(id);
   if (!menuItem) notFound();
 
-  const categories = await getAllCategoriesForAdminMenuItemInput();
+  const [categories, restaurants] = await Promise.all([
+    getAllCategoriesForAdminMenuItemInput(),
+    getRestaurantsForMenuItemInput(),
+  ]);
   const categoryOptions = categories.map((category) => ({
     _id: String(category._id),
     name: category.name,
@@ -46,6 +50,7 @@ const UpdateMenuItem = async (props: UpdateMenuItemProps) => {
           menuItem={menuItem}
           menuItemId={menuItem._id.toString()}
           categories={categoryOptions}
+          restaurants={restaurants}
         />
       </div>
     </main>

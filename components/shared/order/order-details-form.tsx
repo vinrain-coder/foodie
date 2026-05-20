@@ -275,8 +275,9 @@ export default function OrderDetailsForm({
                 {" "}
                 <Badge variant="pending">Not delivered</Badge>
                 <div>
-                  Expected delivery at{" "}
-                  {formatDateTime(expectedDeliveryDate!).dateTime}
+                  Arrives in about 30 mins (around{" "}
+                  {formatDateTime(expectedDeliveryDate!).timeOnly}
+                  )
                 </div>
               </div>
             )}

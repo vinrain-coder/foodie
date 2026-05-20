@@ -8,5 +8,5 @@ export const getOrderPdfDownloadUrl = (
 export const getOrderPdfFileName = (
   orderId: string,
   kind: ReceiptDocumentKind = "receipt",
-) => `shoepedi-${kind}-${orderId}.pdf`;
+) => `tumafood-${kind}-${orderId}.pdf`;
 

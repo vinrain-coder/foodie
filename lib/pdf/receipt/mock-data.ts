@@ -75,7 +75,7 @@ export const receiptMockData: ReceiptDocumentData = {
   returnPolicy:
     "Returns are accepted within 14 days from receipt if items are unworn and in original packaging.",
   thankYouMessage:
-    "Thank you for choosing ShoePedi. Your trust means everything to us.",
+    "Thank you for choosing TumaFood. Your trust means everything to us.",
   qrCodeUrl: undefined,
   barcodeUrl: undefined,
   currency: "KES",

@@ -27,9 +27,9 @@ type SessionCreatedEvent = {
 
 export const auth = betterAuth({
   database: mongodbAdapter(db),
-  
+
   baseURL: process.env.NEXT_PUBLIC_APP_URL,
-  
+
   session: {
     cookieCache: {
       enabled: true,
@@ -262,12 +262,11 @@ export const auth = betterAuth({
   account: {
     accountLinking: {
       enabled: true,
+      trustedProviders: ["google"],
     },
   },
 
-  plugins: [
-    jwt(),
-  ],
+  plugins: [jwt()],
 
   advanced: {
     cookiePrefix: "tumafood_auth",

@@ -100,8 +100,8 @@ export const OrderSummary = ({
                 : "Ship to this address"}
             </Button>
             <p className="text-xs text-center py-2">
-              Choose a shipping address and payment method in order to calculate
-              shipping, handling, and tax.
+              Choose a shipping address and payment method to continue checkout.
+              Shipping uses the restaurant&apos;s delivery fee.
             </p>
           </div>
         )}

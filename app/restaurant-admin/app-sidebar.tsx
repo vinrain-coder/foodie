@@ -101,13 +101,15 @@ const data = {
 };
 
 export function RestaurantAdminSidebar({
-  siteLogo,
-  siteName,
+  restaurantLogo,
+  restaurantName,
   ...props
 }: React.ComponentProps<typeof Sidebar> & {
-  siteLogo: string;
-  siteName: string;
+  restaurantLogo: string;
+  restaurantName: string;
 }) {
+  const nameInitial = restaurantName.trim().charAt(0).toUpperCase() || "R";
+
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
@@ -117,15 +119,24 @@ export function RestaurantAdminSidebar({
               asChild
               className="data-[slot=sidebar-menu-button]:p-1.5!"
             >
-              <Link href="/" className="flex items-center gap-2">
-                <Image
-                  src={siteLogo || "/icons/logo.svg"}
-                  alt={`${siteName} logo`}
-                  width={52}
-                  height={52}
-                  className="rounded"
-                />
-                <span className="text-base font-semibold">{siteName}</span>
+              <Link
+                href="/restaurant-admin/overview"
+                className="flex items-center gap-2"
+              >
+                {restaurantLogo ? (
+                  <Image
+                    src={restaurantLogo}
+                    alt={`${restaurantName} logo`}
+                    width={52}
+                    height={52}
+                    className="rounded"
+                  />
+                ) : (
+                  <div className="flex h-[52px] w-[52px] items-center justify-center rounded bg-primary/10 text-lg font-semibold text-primary">
+                    {nameInitial}
+                  </div>
+                )}
+                <span className="text-base font-semibold">{restaurantName}</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>

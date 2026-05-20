@@ -1,14 +1,14 @@
 import { RestaurantAdminSidebar } from "@/app/restaurant-admin/app-sidebar";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { getServerSession } from "@/lib/get-session";
-import { getSetting } from "@/lib/actions/setting.actions";
 import { toSignInPath } from "@/lib/redirects";
 import { redirect } from "next/navigation";
 import { SiteHeader } from "./site-header";
 import type { Metadata } from "next";
 import { PRIVATE_ROBOTS } from "@/lib/seo";
 import { canAccessRestaurantDashboard } from "@/lib/dashboard-access";
-import { getStaffScope } from "@/lib/staff-scope";
+import { getStaffScope, type StaffScope } from "@/lib/staff-scope";
+import Restaurant from "@/lib/db/models/restaurant.model";
 
 export const metadata: Metadata = {
   robots: PRIVATE_ROBOTS,
@@ -20,7 +20,6 @@ export default async function RestaurantAdminLayout({
   children: React.ReactNode;
 }) {
   const session = await getServerSession();
-  const { site } = await getSetting();
 
   if (!session?.user) {
     redirect(toSignInPath("/restaurant-admin"));
@@ -30,10 +29,25 @@ export default async function RestaurantAdminLayout({
     redirect("/forbidden");
   }
 
+  let scope: StaffScope;
   try {
-    await getStaffScope();
+    scope = await getStaffScope();
   } catch {
     redirect("/restaurant/register");
+  }
+
+  let restaurantName = "Restaurant Dashboard";
+  let restaurantLogo = "";
+
+  if (scope.role === "RESTAURANT") {
+    const restaurant = await Restaurant.findById(scope.restaurantId)
+      .select("name logo")
+      .lean();
+
+    if (restaurant) {
+      restaurantName = restaurant.name;
+      restaurantLogo = restaurant.logo || "";
+    }
   }
 
   return (
@@ -47,11 +61,11 @@ export default async function RestaurantAdminLayout({
     >
       <RestaurantAdminSidebar
         variant="inset"
-        siteLogo={site.logo}
-        siteName={site.name}
+        restaurantLogo={restaurantLogo}
+        restaurantName={restaurantName}
       />
       <SidebarInset>
-        <SiteHeader />
+        <SiteHeader restaurantName={restaurantName} />
         <div className="flex flex-1 flex-col">
           <div className="@container/main flex flex-1 flex-col gap-2">
             <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-2">

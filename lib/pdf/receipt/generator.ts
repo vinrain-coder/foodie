@@ -20,7 +20,7 @@ const sanitizeOrderId = (orderId: string) => orderId.replace(/[^a-zA-Z0-9-_]/g, 
 export const buildReceiptFileName = (
   kind: ReceiptDocumentKind,
   orderId: string,
-  prefix = "shoepedi",
+  prefix = "tumafood",
 ) => {
   const safeOrderId = sanitizeOrderId(orderId);
   return `${prefix}-${kind}-${safeOrderId}.pdf`;
@@ -29,7 +29,7 @@ export const buildReceiptFileName = (
 export const getReceiptExportMeta = (
   kind: ReceiptDocumentKind,
   orderId: string,
-  prefix = "shoepedi",
+  prefix = "tumafood",
 ): ReceiptExportMeta => ({
   fileName: buildReceiptFileName(kind, orderId, prefix),
   mimeType: "application/pdf",
@@ -70,7 +70,7 @@ export const buildOrderPdf = async (
   const meta = getReceiptExportMeta(
     kind,
     mapped.orderId,
-    options?.filenamePrefix || "shoepedi",
+    options?.filenamePrefix || "tumafood",
   );
 
   return { buffer, meta, data: mapped };

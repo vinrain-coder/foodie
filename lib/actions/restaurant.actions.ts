@@ -1,12 +1,15 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { connectToDatabase } from "../db";
 import Restaurant, {
   type RestaurantApplicationStatus,
 } from "../db/models/restaurant.model";
 import User from "../db/models/user.model";
-import { RestaurantApplicationInputSchema } from "../validator";
+import {
+  RestaurantApplicationInputSchema,
+  RestaurantRegistrationInputSchema,
+} from "../validator";
 import {
   escapeRegExp,
   flattenZodErrors,
@@ -15,11 +18,24 @@ import {
 } from "../utils";
 import type { ActionState } from "@/types/action-state";
 import { getServerSession } from "../get-session";
-import { sendAdminEventNotification } from "../email/transactional";
+import {
+  sendAdminEventNotification,
+  sendRestaurantLifecycleNotification,
+} from "../email/transactional";
 import { getSetting } from "./setting.actions";
 import MenuItem from "../db/models/menu.item.model";
+import Review from "../db/models/review.model";
+import StockSubscription from "../db/models/stock-subscription.model";
+import Order from "../db/models/order.model";
+import AffiliateEarning from "../db/models/affiliate-earning.model";
+import BNPLPayment from "../db/models/bnpl-payment.model";
+import Installment from "../db/models/installment.model";
+import CoinTransaction from "../db/models/coin-transaction.model";
+import WalletTransaction from "../db/models/wallet-transaction.model";
+import FirstPurchaseClaim from "../db/models/first-purchase-claim.model";
 import mongoose from "mongoose";
 import { isAdminRole, isRestaurantRole } from "../dashboard-access";
+import { hitRestaurantRegistrationLimit } from "../restaurant-registration-rate-limit";
 
 type RestaurantApplicationSnapshot = {
   name: string;
@@ -89,6 +105,26 @@ export type RestaurantApplicationStatusResponse =
       application: RestaurantApplicationSnapshot;
     };
 
+const normalizeEmail = (email?: string | null) => email?.trim().toLowerCase() || "";
+
+const buildRestaurantEmailRecipients = (...emails: Array<string | undefined | null>) =>
+  Array.from(
+    new Set(
+      emails
+        .map((email) => normalizeEmail(email))
+        .filter((email) => email.length > 0),
+    ),
+  );
+
+const logNonCriticalNotificationFailure = (
+  context: string,
+  result: PromiseSettledResult<unknown>,
+) => {
+  if (result.status === "rejected") {
+    console.error(`Non-critical: Failed to ${context}:`, result.reason);
+  }
+};
+
 export async function registerRestaurantApplication(
   data: unknown,
 ): Promise<ActionState> {
@@ -99,7 +135,25 @@ export async function registerRestaurantApplication(
     if (!isRestaurantRole(session.user.role) && !isAdminRole(session.user.role))
       throw new Error("Unauthorized");
 
-    const validated = RestaurantApplicationInputSchema.safeParse(data);
+    const registrationLimit = hitRestaurantRegistrationLimit(
+      `restaurant-register:${session.user.id}`,
+    );
+    if (!registrationLimit.allowed) {
+      throw new Error(
+        `Too many registration attempts. Please retry in ${registrationLimit.retryAfterSeconds} seconds.`,
+      );
+    }
+
+    const isVerifiedEmail = Boolean(
+      (session.user as { emailVerified?: boolean }).emailVerified,
+    );
+    if (!isVerifiedEmail && !isAdminRole(session.user.role)) {
+      throw new Error(
+        "Please verify your email address before submitting a restaurant application.",
+      );
+    }
+
+    const validated = RestaurantRegistrationInputSchema.safeParse(data);
     if (!validated.success) {
       return {
         success: false,
@@ -108,9 +162,28 @@ export async function registerRestaurantApplication(
       };
     }
 
+    if ((validated.data.website || "").trim().length > 0) {
+      throw new Error("Unable to process this registration request.");
+    }
+
+    const {
+      termsAccepted: _termsAccepted,
+      attestationAccepted: _attestationAccepted,
+      website: _website,
+      ...registrationData
+    } = validated.data;
+
     const payload = {
-      ...validated.data,
-      slug: toSlug(validated.data.slug),
+      ...registrationData,
+      slug: toSlug(registrationData.slug),
+      email: registrationData.email?.trim().toLowerCase() || "",
+      cuisineTypes: Array.from(
+        new Set(
+          (registrationData.cuisineTypes || [])
+            .map((value) => value.trim())
+            .filter(Boolean),
+        ),
+      ),
     };
 
     if (payload.slug.length < 3) {
@@ -123,9 +196,38 @@ export async function registerRestaurantApplication(
 
     const conflictingSlug = await Restaurant.findOne({ slug: payload.slug });
 
+    const conflictingContact = await Restaurant.findOne({
+      ...(existingApplication ? { _id: { $ne: existingApplication._id } } : {}),
+      $or: [
+        { phone: payload.phone },
+        { whatsapp: payload.whatsapp },
+        ...(payload.email ? [{ email: payload.email }] : []),
+      ],
+    })
+      .select("_id")
+      .lean();
+
+    if (conflictingContact) {
+      throw new Error(
+        "These business contact details are already linked to another restaurant.",
+      );
+    }
+
     if (existingApplication) {
       if (existingApplication.status !== "rejected") {
         throw new Error("You already have a restaurant application in progress");
+      }
+
+      const RESUBMISSION_COOLDOWN_MS = 5 * 60_000;
+      const elapsedSinceLastUpdate =
+        Date.now() - new Date(existingApplication.updatedAt).getTime();
+      if (elapsedSinceLastUpdate < RESUBMISSION_COOLDOWN_MS) {
+        const retryAfter = Math.ceil(
+          (RESUBMISSION_COOLDOWN_MS - elapsedSinceLastUpdate) / 1000,
+        );
+        throw new Error(
+          `Please wait ${retryAfter} seconds before resubmitting.`,
+        );
       }
 
       if (
@@ -144,13 +246,37 @@ export async function registerRestaurantApplication(
       });
       await existingApplication.save();
 
-      await sendAdminEventNotification({
-        title: "Restaurant application resubmitted",
-        description: `${session.user.name || "A user"} resubmitted a restaurant application (${existingApplication.name}).`,
-        href: "/admin/restaurants",
-        meta: "Review required",
-        createdAt: existingApplication.updatedAt.toISOString(),
-      });
+      const resubmissionRecipients = buildRestaurantEmailRecipients(
+        session.user.email,
+        payload.email,
+      );
+
+      const resubmissionNotificationResults = await Promise.allSettled([
+        sendAdminEventNotification({
+          title: "Restaurant application resubmitted",
+          description: `${session.user.name || "A user"} resubmitted a restaurant application (${existingApplication.name}).`,
+          href: "/admin/restaurants",
+          meta: "Review required",
+          createdAt: existingApplication.updatedAt.toISOString(),
+        }),
+        ...(resubmissionRecipients.length > 0
+          ? [
+              sendRestaurantLifecycleNotification({
+                to: resubmissionRecipients.join(","),
+                ownerName: session.user.name || "Restaurant owner",
+                restaurantName: existingApplication.name,
+                status: "resubmitted",
+              }),
+            ]
+          : []),
+      ]);
+
+      resubmissionNotificationResults.forEach((result) =>
+        logNonCriticalNotificationFailure(
+          "dispatch restaurant resubmission notifications",
+          result,
+        ),
+      );
 
       revalidatePath("/restaurant/register");
       return {
@@ -173,13 +299,37 @@ export async function registerRestaurantApplication(
       adminNote: "",
     });
 
-    await sendAdminEventNotification({
-      title: "New restaurant application",
-      description: `${session.user.name || "A user"} submitted a restaurant application (${created.name}).`,
-      href: "/admin/restaurants",
-      meta: "Application pending",
-      createdAt: created.createdAt.toISOString(),
-    });
+    const submissionRecipients = buildRestaurantEmailRecipients(
+      session.user.email,
+      payload.email,
+    );
+
+    const submissionNotificationResults = await Promise.allSettled([
+      sendAdminEventNotification({
+        title: "New restaurant application",
+        description: `${session.user.name || "A user"} submitted a restaurant application (${created.name}).`,
+        href: "/admin/restaurants",
+        meta: "Application pending",
+        createdAt: created.createdAt.toISOString(),
+      }),
+      ...(submissionRecipients.length > 0
+        ? [
+            sendRestaurantLifecycleNotification({
+              to: submissionRecipients.join(","),
+              ownerName: session.user.name || "Restaurant owner",
+              restaurantName: created.name,
+              status: "submitted",
+            }),
+          ]
+        : []),
+    ]);
+
+    submissionNotificationResults.forEach((result) =>
+      logNonCriticalNotificationFailure(
+        "dispatch restaurant submission notifications",
+        result,
+      ),
+    );
 
     revalidatePath("/restaurant/register");
 
@@ -452,12 +602,49 @@ export async function updateRestaurantApplicationStatus(
       await User.findByIdAndUpdate(ownerId, { role: "RESTAURANT" });
     }
 
+    const ownerRecord =
+      typeof updated.ownerId === "object" && updated.ownerId !== null
+        ? (updated.ownerId as { name?: string; email?: string; _id?: unknown })
+        : null;
+
+    const applicationRecipients = buildRestaurantEmailRecipients(
+      ownerRecord?.email,
+      updated.email,
+    );
+
+    if (applicationRecipients.length > 0) {
+      const lifecycleStatus =
+        status === "approved"
+          ? "approved"
+          : status === "rejected"
+            ? "rejected"
+            : "pending";
+
+      const applicationNotificationResult = await Promise.allSettled([
+        sendRestaurantLifecycleNotification({
+          to: applicationRecipients.join(","),
+          ownerName: ownerRecord?.name || "Restaurant owner",
+          restaurantName: updated.name,
+          status: lifecycleStatus,
+          adminNote: updated.adminNote || adminNote,
+        }),
+      ]);
+
+      applicationNotificationResult.forEach((result) =>
+        logNonCriticalNotificationFailure(
+          "send restaurant application status email",
+          result,
+        ),
+      );
+    }
+
     revalidatePath("/admin/restaurants");
     revalidatePath(`/admin/restaurants/${id}`);
     revalidatePath("/restaurant/register");
     revalidatePath("/restaurant-admin");
     revalidatePath("/restaurants");
     revalidatePath(`/restaurants/${updated.slug}`);
+    updateTag("menuItems");
     if (previousSlug !== updated.slug) {
       revalidatePath(`/restaurants/${previousSlug}`);
     }
@@ -498,12 +685,41 @@ export async function updateRestaurantActivationStatus(
 
     await restaurant.save();
 
+    const owner = await User.findById(restaurant.ownerId)
+      .select("name email")
+      .lean();
+
+    const activationRecipients = buildRestaurantEmailRecipients(
+      owner?.email,
+      restaurant.email,
+    );
+
+    if (activationRecipients.length > 0) {
+      const activationNotificationResult = await Promise.allSettled([
+        sendRestaurantLifecycleNotification({
+          to: activationRecipients.join(","),
+          ownerName: owner?.name || "Restaurant owner",
+          restaurantName: restaurant.name,
+          status: isActive ? "activated" : "suspended",
+          adminNote: restaurant.adminNote || adminNote,
+        }),
+      ]);
+
+      activationNotificationResult.forEach((result) =>
+        logNonCriticalNotificationFailure(
+          "send restaurant activation status email",
+          result,
+        ),
+      );
+    }
+
     revalidatePath("/admin/restaurants");
     revalidatePath(`/admin/restaurants/${restaurant._id.toString()}`);
     revalidatePath("/restaurant/register");
     revalidatePath("/restaurant-admin");
     revalidatePath("/restaurants");
     revalidatePath(`/restaurants/${restaurant.slug}`);
+    updateTag("menuItems");
 
     return {
       success: true,
@@ -511,6 +727,109 @@ export async function updateRestaurantActivationStatus(
         ? "Restaurant activated successfully"
         : "Restaurant suspended successfully",
       data: JSON.parse(JSON.stringify(restaurant)),
+    };
+  } catch (error) {
+    return { success: false, message: formatError(error) };
+  }
+}
+
+export async function deleteRestaurantByAdmin(id: string): Promise<ActionState> {
+  try {
+    await connectToDatabase();
+    const session = await getServerSession();
+    if (!isAdminRole(session?.user?.role)) throw new Error("Unauthorized");
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      throw new Error("Invalid restaurant id");
+    }
+
+    const restaurant = await Restaurant.findById(id)
+      .select("_id slug ownerId name")
+      .lean();
+
+    if (!restaurant) {
+      throw new Error("Restaurant not found");
+    }
+
+    const restaurantId = new mongoose.Types.ObjectId(id);
+
+    const menuItems = await MenuItem.find({ restaurant: restaurantId })
+      .select("_id")
+      .lean();
+    const menuItemIds = menuItems.map((item) => item._id);
+
+    const orderFilter = {
+      $or: [
+        { restaurant: restaurantId },
+        ...(menuItemIds.length > 0
+          ? [{ "items.menuItem": { $in: menuItemIds } }]
+          : []),
+      ],
+    };
+
+    const orders = await Order.find(orderFilter).select("_id").lean();
+    const orderIds = orders.map((order) => order._id);
+
+    if (menuItemIds.length > 0) {
+      await Promise.all([
+        Review.deleteMany({ menuItem: { $in: menuItemIds } }),
+        StockSubscription.deleteMany({ menuItem: { $in: menuItemIds } }),
+        User.updateMany(
+          {
+            wishlist: { $type: "array" },
+          },
+          {
+            $pull: {
+              wishlist: { $in: menuItemIds },
+            },
+          },
+        ),
+      ]);
+    }
+
+    if (orderIds.length > 0) {
+      await Promise.all([
+        AffiliateEarning.deleteMany({ order: { $in: orderIds } }),
+        BNPLPayment.deleteMany({ order: { $in: orderIds } }),
+        Installment.deleteMany({ order: { $in: orderIds } }),
+        CoinTransaction.deleteMany({ order: { $in: orderIds } }),
+        WalletTransaction.deleteMany({ order: { $in: orderIds } }),
+        FirstPurchaseClaim.deleteMany({ order: { $in: orderIds } }),
+      ]);
+    }
+
+    await Promise.all([
+      Order.deleteMany(orderFilter),
+      MenuItem.deleteMany({ restaurant: restaurantId }),
+      Restaurant.deleteOne({ _id: restaurantId }),
+    ]);
+
+    const ownerId = restaurant.ownerId?.toString();
+    if (ownerId && mongoose.Types.ObjectId.isValid(ownerId)) {
+      const hasAnotherRestaurant = await Restaurant.exists({
+        ownerId: new mongoose.Types.ObjectId(ownerId),
+      });
+
+      if (!hasAnotherRestaurant) {
+        const owner = await User.findById(ownerId).select("role").lean();
+        if (owner && !isAdminRole(owner.role)) {
+          await User.findByIdAndUpdate(ownerId, { role: "USER" });
+        }
+      }
+    }
+
+    revalidatePath("/admin/restaurants");
+    revalidatePath(`/admin/restaurants/${id}`);
+    revalidatePath("/restaurant-admin");
+    revalidatePath("/restaurants");
+    revalidatePath(`/restaurants/${restaurant.slug}`);
+    updateTag("menuItems");
+    updateTag("orders");
+
+    return {
+      success: true,
+      message: "Restaurant deleted successfully",
+      data: { _id: id, name: restaurant.name },
     };
   } catch (error) {
     return { success: false, message: formatError(error) };
@@ -706,24 +1025,39 @@ export async function getRestaurantBySlugForStorefront(slug: string) {
 }
 
 export async function getRestaurantSummaryForMenuItem(
-  restaurantId: string,
+  params: { restaurantId?: string | null; menuItemId?: string | null },
 ): Promise<MenuItemRestaurantSummary | null> {
   await connectToDatabase();
+  const normalizedRestaurantId = params.restaurantId?.trim() || "";
+  const normalizedMenuItemId = params.menuItemId?.trim() || "";
 
-  if (!mongoose.Types.ObjectId.isValid(restaurantId)) {
-    return null;
+  let restaurant: any = null;
+
+  if (mongoose.Types.ObjectId.isValid(normalizedRestaurantId)) {
+    restaurant = await Restaurant.findOne({
+      _id: new mongoose.Types.ObjectId(normalizedRestaurantId),
+      status: "approved",
+      isApproved: true,
+      isActive: true,
+    })
+      .select(
+        "name slug logo location phone whatsapp openingHours acceptsDelivery acceptsPickup averagePrepTimeMinutes",
+      )
+      .lean();
   }
 
-  const restaurant = await Restaurant.findOne({
-    _id: new mongoose.Types.ObjectId(restaurantId),
-    status: "approved",
-    isApproved: true,
-    isActive: true,
-  })
-    .select(
-      "name slug logo location phone whatsapp openingHours acceptsDelivery acceptsPickup averagePrepTimeMinutes",
-    )
-    .lean();
+  if (!restaurant && mongoose.Types.ObjectId.isValid(normalizedMenuItemId)) {
+    restaurant = await Restaurant.findOne({
+      menuItems: new mongoose.Types.ObjectId(normalizedMenuItemId),
+      status: "approved",
+      isApproved: true,
+      isActive: true,
+    })
+      .select(
+        "name slug logo location phone whatsapp openingHours acceptsDelivery acceptsPickup averagePrepTimeMinutes",
+      )
+      .lean();
+  }
 
   if (!restaurant) return null;
 
@@ -751,7 +1085,8 @@ export async function getRestaurantSettingsForOwner(): Promise<{
     await connectToDatabase();
     const session = await getServerSession();
     if (!session) throw new Error("User not authenticated");
-    if (!isRestaurantRole(session.user.role)) throw new Error("Unauthorized");
+    if (!isRestaurantRole(session.user.role) && !isAdminRole(session.user.role))
+      throw new Error("Unauthorized");
 
     const restaurant = await Restaurant.findOne({
       ownerId: session.user.id,
@@ -796,7 +1131,8 @@ export async function updateRestaurantSettingsForOwner(
     await connectToDatabase();
     const session = await getServerSession();
     if (!session) throw new Error("User not authenticated");
-    if (!isRestaurantRole(session.user.role)) throw new Error("Unauthorized");
+    if (!isRestaurantRole(session.user.role) && !isAdminRole(session.user.role))
+      throw new Error("Unauthorized");
 
     const validated = RestaurantApplicationInputSchema.safeParse(input);
     if (!validated.success) {

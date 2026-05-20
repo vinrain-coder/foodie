@@ -1,16 +1,40 @@
 import { NextRequest, NextResponse } from "next/server";
 import MenuItem from "@/lib/db/models/menu.item.model";
+import Restaurant from "@/lib/db/models/restaurant.model";
 import { connectToDatabase } from "@/lib/db";
+
+async function getStorefrontVisibilityFilter() {
+  const hiddenRestaurants = await Restaurant.find({
+    $or: [
+      { status: { $ne: "approved" } },
+      { isApproved: false },
+      { isActive: false },
+    ],
+  })
+    .select("_id")
+    .lean();
+
+  if (hiddenRestaurants.length === 0) return {};
+
+  return {
+    $or: [
+      { restaurant: { $exists: false } },
+      { restaurant: null },
+      { restaurant: { $nin: hiddenRestaurants.map((r) => r._id) } },
+    ],
+  };
+}
 
 async function getBrowsingMenuItems(idsKey: string, categoriesKey: string) {
   await connectToDatabase();
 
   const menuItemIds = idsKey.split(",");
   const categories = categoriesKey.split(",");
+  const storefrontVisibilityFilter = await getStorefrontVisibilityFilter();
 
   const [history, related] = await Promise.all([
     // Browsing history
-    MenuItem.find({ _id: { $in: menuItemIds } }).lean(),
+    MenuItem.find({ _id: { $in: menuItemIds }, ...storefrontVisibilityFilter }).lean(),
 
     // Related menuItems (stronger logic)
     MenuItem.find({
@@ -19,6 +43,7 @@ async function getBrowsingMenuItems(idsKey: string, categoriesKey: string) {
         { isFeatured: true }, // fallback if category is weak
       ],
       _id: { $nin: menuItemIds },
+      ...storefrontVisibilityFilter,
     })
       .limit(20)
       .lean(),

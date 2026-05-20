@@ -114,7 +114,7 @@ export default function TrackingClient({
               <OrderStatusBadge status={data.status} />
             </div>
             <p className="text-sm text-muted-foreground">
-              Estimated delivery:{" "}
+              Arrives in about 30 mins (ETA{" "}
               {
                 formatDateTime(
                   new Date(
@@ -122,8 +122,9 @@ export default function TrackingClient({
                       data.expectedDeliveryDate ||
                       new Date(),
                   ),
-                ).dateTime
+                ).timeOnly
               }
+              )
             </p>
             <p className="text-sm">
               Courier: {data.shipment?.courierName || "Pending assignment"}

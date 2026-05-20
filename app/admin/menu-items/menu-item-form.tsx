@@ -96,11 +96,13 @@ const MenuItemForm = ({
   menuItem,
   menuItemId,
   categories,
+  restaurants,
 }: {
   type: "Create" | "Update";
   menuItem?: IMenuItem;
   menuItemId?: string;
   categories: { _id: string; name: string }[];
+  restaurants: { _id: string; name: string }[];
 }) => {
   const { theme } = useTheme();
   const router = useRouter();
@@ -115,7 +117,14 @@ const MenuItemForm = ({
             MenuItemInputSchema,
           ) as unknown as Resolver<IMenuItemInput>),
     defaultValues:
-      menuItem && type === "Update" ? menuItem : menuItemDefaultValues,
+      menuItem && type === "Update"
+        ? {
+            ...menuItem,
+            restaurant: menuItem.restaurant
+              ? String(menuItem.restaurant)
+              : undefined,
+          }
+        : menuItemDefaultValues,
   });
 
   async function onSubmit(values: IMenuItemInput) {
@@ -145,8 +154,6 @@ const MenuItemForm = ({
       router.push(`/admin/menu-items`);
     }
   }
-
-  const images = form.watch("images");
 
   const nameValue = form.watch("name");
 
@@ -212,6 +219,38 @@ const MenuItemForm = ({
         <div className="flex flex-col gap-5 md:flex-row">
           <Controller
             control={form.control}
+            name="restaurant"
+            render={({ field, fieldState }) => (
+              <Field className="w-full" data-invalid={fieldState.invalid}>
+                <FieldLabel>Restaurant</FieldLabel>
+
+                <Select
+                  value={field.value || ""}
+                  onValueChange={(value) => field.onChange(value || undefined)}
+                >
+                  <SelectTrigger
+                    className="w-full cursor-pointer"
+                    aria-invalid={fieldState.invalid}
+                  >
+                    <SelectValue placeholder="Select restaurant" />
+                  </SelectTrigger>
+
+                  <SelectContent>
+                    {restaurants.map((restaurant) => (
+                      <SelectItem key={restaurant._id} value={restaurant._id}>
+                        {restaurant.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <FieldError errors={[fieldState.error]} />
+              </Field>
+            )}
+          />
+
+          <Controller
+            control={form.control}
             name="category"
             render={({ field, fieldState }) => (
               <Field className="w-full" data-invalid={fieldState.invalid}>
@@ -238,7 +277,9 @@ const MenuItemForm = ({
               </Field>
             )}
           />
+        </div>
 
+        <div className="flex flex-col gap-5 md:flex-row">
           <Controller
             control={form.control}
             name="videoLink"

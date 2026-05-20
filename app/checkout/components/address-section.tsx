@@ -21,7 +21,6 @@ import { AddressBookEntry, ShippingAddress } from "@/types";
 import { UseFormReturn, Controller, FormProvider } from "react-hook-form";
 import type { User as AuthUser } from "better-auth";
 import { shippingAddressDefaultValues } from "../utils/checkout-helpers";
-import Price from "@/components/shared/menuItem/price";
 
 interface AddressSectionProps {
   isAddressSelected: boolean;
@@ -32,7 +31,6 @@ interface AddressSectionProps {
   setSelectedSavedAddressId: (id: string) => void;
   setIsAddressSelected: (selected: boolean) => void;
   setIsPaymentMethodSelected: (selected: boolean) => void;
-  setIsDeliveryDateSelected: (selected: boolean) => void;
   shippingAddressForm: UseFormReturn<ShippingAddress>;
   saveAddressToAccount: boolean;
   setSaveAddressToAccount: (save: boolean) => void;
@@ -59,7 +57,6 @@ export const AddressSection = ({
   setSelectedSavedAddressId,
   setIsAddressSelected,
   setIsPaymentMethodSelected,
-  setIsDeliveryDateSelected,
   shippingAddressForm,
   saveAddressToAccount,
   setSaveAddressToAccount,
@@ -98,7 +95,6 @@ export const AddressSection = ({
             onClick={() => {
               setIsAddressSelected(false);
               setIsPaymentMethodSelected(true);
-              setIsDeliveryDateSelected(true);
             }}
           >
             Change
@@ -438,7 +434,7 @@ export const AddressSection = ({
                   name="city"
                   render={({ field, fieldState }) => (
                     <Field className="w-full" data-invalid={fieldState.invalid}>
-                      <FieldLabel>Delivery place</FieldLabel>
+                      <FieldLabel>Delivery area</FieldLabel>
 
                       <Select
                         value={field.value}
@@ -461,8 +457,7 @@ export const AddressSection = ({
                         <SelectContent>
                           {places.map((p) => (
                             <SelectItem key={p.city} value={p.city}>
-                              {p.city} (
-                              <Price price={p.rate} plain />)
+                              {p.city}
                             </SelectItem>
                           ))}
                         </SelectContent>

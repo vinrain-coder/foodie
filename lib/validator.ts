@@ -42,6 +42,10 @@ const MenuItemInputBase = z.object({
   name: z.string().min(3, "Name must be at least 3 characters"),
   slug: z.string().min(3, "Slug must be at least 3 characters"),
   category: z.string().min(1, "Category is required"),
+  restaurant: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    MongoId.optional(),
+  ),
   images: z.array(z.string()).min(1, "Menu Item must have at least one image"),
   videoLink: z
     .string()
@@ -838,6 +842,22 @@ export const RestaurantApplicationInputSchema = z.object({
     .max(300, "Average prep time must be at most 300 minutes")
     .default(30),
 });
+
+export const RestaurantRegistrationInputSchema =
+  RestaurantApplicationInputSchema.extend({
+    termsAccepted: z
+      .boolean()
+      .refine((value) => value === true, {
+        message: "You must accept the platform terms and onboarding policy",
+      }),
+    attestationAccepted: z
+      .boolean()
+      .refine((value) => value === true, {
+        message:
+          "You must confirm that the submitted business information is accurate",
+      }),
+    website: z.string().max(0).optional().or(z.literal("")),
+  });
 
 const AdminAdjustmentBaseSchema = z.object({
   userId: MongoId,
