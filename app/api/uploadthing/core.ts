@@ -1,8 +1,37 @@
 import { createUploadthing, type FileRouter } from "uploadthing/next";
 import { UploadThingError } from "uploadthing/server";
 import { getServerSession } from "@/lib/get-session";
+import { isAdminRole, isRestaurantRole } from "@/lib/dashboard-access";
 
 const f = createUploadthing();
+
+const ensureAuthenticatedUser = async () => {
+  const session = await getServerSession();
+  if (!session?.user?.id) throw new UploadThingError("Unauthorized");
+  return session.user;
+};
+
+const ensureStaffUser = async () => {
+  const user = await ensureAuthenticatedUser();
+  if (!isAdminRole(user.role) && !isRestaurantRole(user.role)) {
+    throw new UploadThingError("Unauthorized");
+  }
+  return user;
+};
+
+const withSessionMeta = async ({ metadata, file }: { metadata: { userId: string }; file: { ufsUrl: string; key: string; name: string; type: string; size: number } }) => {
+  return {
+    uploadedBy: metadata.userId,
+    fileKey: file.key,
+    fileName: file.name,
+    fileType: file.type,
+    fileSize: file.size,
+    fileUrl: file.ufsUrl,
+    // Backward compatible fields:
+    url: file.ufsUrl,
+    ufsUrl: file.ufsUrl,
+  };
+};
 
 export const ourFileRouter = {
   // menu Images
@@ -17,13 +46,10 @@ export const ourFileRouter = {
     },
   })
     .middleware(async () => {
-      const session = await getServerSession();
-      if (!session) throw new UploadThingError("Unauthorized");
-      return { userId: session.user.id };
+      const user = await ensureStaffUser();
+      return { userId: user.id };
     })
-    .onUploadComplete(async ({ metadata, file }) => {
-      return { uploadedBy: metadata.userId, fileUrl: file.ufsUrl };
-    }),
+    .onUploadComplete(withSessionMeta),
 
   // Categories
   categories: f({
@@ -33,13 +59,10 @@ export const ourFileRouter = {
     },
   })
     .middleware(async () => {
-      const session = await getServerSession();
-      if (!session) throw new UploadThingError("Unauthorized");
-      return { userId: session.user.id };
+      const user = await ensureStaffUser();
+      return { userId: user.id };
     })
-    .onUploadComplete(async ({ metadata, file }) => {
-      return { uploadedBy: metadata.userId, fileUrl: file.ufsUrl };
-    }),
+    .onUploadComplete(withSessionMeta),
 
   //carousels
   carousels: f({
@@ -49,13 +72,10 @@ export const ourFileRouter = {
     },
   })
     .middleware(async () => {
-      const session = await getServerSession();
-      if (!session) throw new UploadThingError("Unauthorized");
-      return { userId: session.user.id };
+      const user = await ensureStaffUser();
+      return { userId: user.id };
     })
-    .onUploadComplete(async ({ metadata, file }) => {
-      return { uploadedBy: metadata.userId, fileUrl: file.ufsUrl };
-    }),
+    .onUploadComplete(withSessionMeta),
 
   // logos
   logos: f({
@@ -65,13 +85,10 @@ export const ourFileRouter = {
     },
   })
     .middleware(async () => {
-      const session = await getServerSession();
-      if (!session) throw new UploadThingError("Unauthorized");
-      return { userId: session.user.id };
+      const user = await ensureStaffUser();
+      return { userId: user.id };
     })
-    .onUploadComplete(async ({ metadata, file }) => {
-      return { uploadedBy: metadata.userId, fileUrl: file.ufsUrl };
-    }),
+    .onUploadComplete(withSessionMeta),
 
   // tags
   tags: f({
@@ -81,13 +98,10 @@ export const ourFileRouter = {
     },
   })
     .middleware(async () => {
-      const session = await getServerSession();
-      if (!session) throw new UploadThingError("Unauthorized");
-      return { userId: session.user.id };
+      const user = await ensureStaffUser();
+      return { userId: user.id };
     })
-    .onUploadComplete(async ({ metadata, file }) => {
-      return { uploadedBy: metadata.userId, fileUrl: file.ufsUrl };
-    }),
+    .onUploadComplete(withSessionMeta),
 
   // blogs
   blogs: f({
@@ -97,13 +111,10 @@ export const ourFileRouter = {
     },
   })
     .middleware(async () => {
-      const session = await getServerSession();
-      if (!session) throw new UploadThingError("Unauthorized");
-      return { userId: session.user.id };
+      const user = await ensureStaffUser();
+      return { userId: user.id };
     })
-    .onUploadComplete(async ({ metadata, file }) => {
-      return { uploadedBy: metadata.userId, fileUrl: file.ufsUrl };
-    }),
+    .onUploadComplete(withSessionMeta),
 
   // reviews
   reviews: f({
@@ -113,13 +124,10 @@ export const ourFileRouter = {
     },
   })
     .middleware(async () => {
-      const session = await getServerSession();
-      if (!session) throw new UploadThingError("Unauthorized");
-      return { userId: session.user.id };
+      const user = await ensureAuthenticatedUser();
+      return { userId: user.id };
     })
-    .onUploadComplete(async ({ metadata, file }) => {
-      return { uploadedBy: metadata.userId, fileUrl: file.ufsUrl };
-    }),
+    .onUploadComplete(withSessionMeta),
 
   // pages
   pages: f({
@@ -129,13 +137,10 @@ export const ourFileRouter = {
     },
   })
     .middleware(async () => {
-      const session = await getServerSession();
-      if (!session) throw new UploadThingError("Unauthorized");
-      return { userId: session.user.id };
+      const user = await ensureStaffUser();
+      return { userId: user.id };
     })
-    .onUploadComplete(async ({ metadata, file }) => {
-      return { uploadedBy: metadata.userId, fileUrl: file.ufsUrl };
-    }),
+    .onUploadComplete(withSessionMeta),
 
   // restaurants
   restaurants: f({
@@ -145,13 +150,10 @@ export const ourFileRouter = {
     },
   })
     .middleware(async () => {
-      const session = await getServerSession();
-      if (!session) throw new UploadThingError("Unauthorized");
-      return { userId: session.user.id };
+      const user = await ensureAuthenticatedUser();
+      return { userId: user.id };
     })
-    .onUploadComplete(async ({ metadata, file }) => {
-      return { uploadedBy: metadata.userId, fileUrl: file.ufsUrl };
-    }),
+    .onUploadComplete(withSessionMeta),
 } satisfies FileRouter;
 
 export type OurFileRouter = typeof ourFileRouter;

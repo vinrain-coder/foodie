@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { UploadButton } from "@/lib/uploadthing";
+import { getUploadthingFileUrl } from "@/lib/uploadthing-media";
 import { ISettingInput } from "@/types";
 import { TrashIcon } from "lucide-react";
 import { UseFormReturn, Controller } from "react-hook-form";
@@ -95,7 +96,12 @@ export default function SiteInfoForm({
                   className="items-start! py-2"
                   endpoint="logos"
                   onClientUploadComplete={(res) => {
-                    form.setValue("site.logo", res[0].url);
+                    const uploadedUrl = getUploadthingFileUrl(res?.[0]);
+                    if (!uploadedUrl) {
+                      toast.error("Upload completed but logo URL was missing.");
+                      return;
+                    }
+                    form.setValue("site.logo", uploadedUrl);
                   }}
                   onUploadError={(error: Error) => {
                     toast.error(`ERROR! ${error.message}`);

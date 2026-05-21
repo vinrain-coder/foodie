@@ -105,6 +105,11 @@ const data = {
       url: "/admin/wallet",
       icon: IconWallet,
     },
+    {
+      title: "Restaurant Payouts",
+      url: "/admin/restaurant-payouts",
+      icon: IconCash,
+    },
   ],
   storefront: [
     {

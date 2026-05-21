@@ -7,6 +7,7 @@ export const RESTAURANT_BLOCKED_ADMIN_PATH_PREFIXES = [
   "/admin/payouts",
   "/admin/coins",
   "/admin/wallet",
+  "/admin/restaurant-payouts",
   "/admin/web-pages",
   "/admin/blogs",
   "/admin/newsletters",

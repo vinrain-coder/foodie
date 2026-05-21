@@ -5,6 +5,11 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import { useDropzone } from "react-dropzone";
 import { useUploadThing } from "@/lib/uploadthing";
+import {
+  getMediaTypeFromUrl,
+  getUploadthingFileUrl,
+  isSafeMediaUrl,
+} from "@/lib/uploadthing-media";
 import { toast } from "sonner";
 import { Controller } from "react-hook-form";
 
@@ -67,14 +72,14 @@ export default function CategoryImageUploader({ form }: ImageUploaderProps) {
   const currentImageUrl = form.getValues("image");
 
   const initialMedia: MediaItem[] = currentImageUrl
-    ? [
+    ? isSafeMediaUrl(currentImageUrl)
+      ? [
         {
           url: currentImageUrl,
-          type: currentImageUrl.match(/\.(mp4|webm|mov|ogg)$/i)
-            ? "video"
-            : "image",
+          type: getMediaTypeFromUrl(currentImageUrl),
         },
       ]
+      : []
     : [];
 
   const [media, setMedia] = useState<MediaItem[]>(initialMedia);
@@ -89,9 +94,14 @@ export default function CategoryImageUploader({ form }: ImageUploaderProps) {
   /* --------------------------- UploadThing --------------------------- */
   const { startUpload, isUploading } = useUploadThing("categories", {
     onClientUploadComplete: (res) => {
+      const uploadedUrl = getUploadthingFileUrl(res?.[0]);
+      if (!uploadedUrl) {
+        toast.error("Upload completed but URL was missing");
+        return;
+      }
       const uploaded: MediaItem = {
-        url: res[0].url,
-        type: res[0].url.match(/\.(mp4|webm|mov|ogg)$/i) ? "video" : "image",
+        url: uploadedUrl,
+        type: getMediaTypeFromUrl(uploadedUrl),
       };
       setMedia([uploaded]); // Replace existing with new one
       toast.success("Upload completed");
@@ -104,12 +114,17 @@ export default function CategoryImageUploader({ form }: ImageUploaderProps) {
 
   /* --------------------------- Dropzone --------------------------- */
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    multiple: true,
+    multiple: false,
+    maxFiles: 1,
+    maxSize: 4 * 1024 * 1024,
     accept: {
       "image/*": [],
       "video/*": [],
     },
-    onDrop: (files) => startUpload(files),
+    onDrop: async (files) => {
+      const result = await startUpload(files);
+      if (!result) toast.error("Upload did not start. Please retry.");
+    },
   });
 
   /* --------------------------- Remove File --------------------------- */

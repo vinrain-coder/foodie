@@ -33,8 +33,16 @@ import Installment from "../db/models/installment.model";
 import CoinTransaction from "../db/models/coin-transaction.model";
 import WalletTransaction from "../db/models/wallet-transaction.model";
 import FirstPurchaseClaim from "../db/models/first-purchase-claim.model";
+import RestaurantBalance from "../db/models/restaurant-balance.model";
+import RestaurantLedgerEntry from "../db/models/restaurant-ledger-entry.model";
+import RestaurantPayoutAccount from "../db/models/restaurant-payout-account.model";
+import RestaurantPayout from "../db/models/restaurant-payout.model";
 import mongoose from "mongoose";
-import { isAdminRole, isRestaurantRole } from "../dashboard-access";
+import {
+  isAdminRole,
+  isRestaurantRole,
+  normalizeUserRole,
+} from "../dashboard-access";
 import { hitRestaurantRegistrationLimit } from "../restaurant-registration-rate-limit";
 
 type RestaurantApplicationSnapshot = {
@@ -132,7 +140,12 @@ export async function registerRestaurantApplication(
     await connectToDatabase();
     const session = await getServerSession();
     if (!session) throw new Error("User not authenticated");
-    if (!isRestaurantRole(session.user.role) && !isAdminRole(session.user.role))
+    const normalizedRole = normalizeUserRole(session.user.role);
+    const canSubmitRestaurantApplication =
+      normalizedRole === "USER" ||
+      isRestaurantRole(session.user.role) ||
+      isAdminRole(session.user.role);
+    if (!canSubmitRestaurantApplication)
       throw new Error("Unauthorized");
 
     const registrationLimit = hitRestaurantRegistrationLimit(
@@ -801,6 +814,10 @@ export async function deleteRestaurantByAdmin(id: string): Promise<ActionState> 
     await Promise.all([
       Order.deleteMany(orderFilter),
       MenuItem.deleteMany({ restaurant: restaurantId }),
+      RestaurantLedgerEntry.deleteMany({ restaurant: restaurantId }),
+      RestaurantBalance.deleteMany({ restaurant: restaurantId }),
+      RestaurantPayout.deleteMany({ restaurant: restaurantId }),
+      RestaurantPayoutAccount.deleteMany({ restaurant: restaurantId }),
       Restaurant.deleteOne({ _id: restaurantId }),
     ]);
 

@@ -7,6 +7,10 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { useUploadThing } from "@/lib/uploadthing";
+import {
+  getUploadthingFileUrl,
+  isSafeMediaUrl,
+} from "@/lib/uploadthing-media";
 
 export default function ReviewImageUploader({
   value,
@@ -17,14 +21,15 @@ export default function ReviewImageUploader({
 }) {
   const { startUpload, isUploading } = useUploadThing("reviews", {
     onClientUploadComplete: (files) => {
-      const uploaded = files[0]?.url;
+      const uploaded = getUploadthingFileUrl(files?.[0]);
       if (!uploaded) return;
       const current = value || [];
       if (current.length >= 2) {
         toast.error("You can upload up to 2 images");
         return;
       }
-      onChange([...current, uploaded]);
+      const next = [...current, uploaded].filter((url) => isSafeMediaUrl(url));
+      onChange(Array.from(new Set(next)).slice(0, 2));
       toast.success("Review image uploaded");
     },
     onUploadError: (error) => {
@@ -37,6 +42,11 @@ export default function ReviewImageUploader({
   ) => {
     const file = event.target.files?.[0];
     if (!file) return;
+    if (file.size > 4 * 1024 * 1024) {
+      toast.error("Image is too large. Max size is 4MB.");
+      event.target.value = "";
+      return;
+    }
 
     await startUpload([file]);
     event.target.value = "";
@@ -70,7 +80,7 @@ export default function ReviewImageUploader({
     } catch {
       // no-op
     }
-    onChange((value || []).filter((url) => url !== target));
+    onChange((value || []).filter((url) => url !== target && isSafeMediaUrl(url)));
   };
 
   return (
@@ -91,7 +101,7 @@ export default function ReviewImageUploader({
 
       {!!value?.length && (
         <div className="grid gap-3 sm:grid-cols-2">
-          {value.map((imageUrl) => (
+          {value.filter((imageUrl) => isSafeMediaUrl(imageUrl)).map((imageUrl) => (
             <div
               key={imageUrl}
               className="relative overflow-hidden rounded-2xl border bg-background shadow-sm"

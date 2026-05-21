@@ -83,6 +83,7 @@ export const auth = betterAuth({
     google: {
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      prompt: "select_account",
     },
   },
 
@@ -263,6 +264,9 @@ export const auth = betterAuth({
     accountLinking: {
       enabled: true,
       trustedProviders: ["google"],
+      // Allow Google (trusted provider) to link to an existing local account
+      // even if the local email/password account is not yet verified.
+      requireLocalEmailVerified: false,
     },
   },
 

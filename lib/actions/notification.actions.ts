@@ -14,6 +14,7 @@ import Affiliate from "../db/models/affiliate.model";
 import AffiliatePayout from "../db/models/affiliate-payout.model";
 import WalletPayout from "../db/models/wallet-payout.model";
 import Restaurant from "../db/models/restaurant.model";
+import RestaurantPayout from "../db/models/restaurant-payout.model";
 import {
   canAccessAdminDashboard,
   isRestaurantRole,
@@ -33,6 +34,7 @@ export type AdminNotificationItem = {
     | "affiliate"
     | "affiliate-payout"
     | "wallet-payout"
+    | "restaurant-payout"
     | "restaurant";
   title: string;
   description: string;
@@ -143,6 +145,21 @@ type WalletPayoutNotificationSource = {
   } | null;
 };
 
+type RestaurantPayoutNotificationSource = {
+  _id: { toString(): string } | string;
+  createdAt: Date | string;
+  amount: number;
+  status: "pending" | "processing" | "paid" | "rejected" | "failed";
+  payoutMethod: string;
+  restaurant?: {
+    name?: string;
+  } | null;
+  requestedBy?: {
+    name?: string;
+    email?: string;
+  } | null;
+};
+
 type RestaurantNotificationSource = {
   _id: { toString(): string } | string;
   createdAt: Date | string;
@@ -159,6 +176,20 @@ type RestaurantNotificationSource = {
 
 const asId = (value: { toString(): string } | string) => value.toString();
 const asDate = (value: Date | string) => new Date(value).toISOString();
+const formatRestaurantPayoutMethod = (method?: string) => {
+  const normalized = String(method || "")
+    .trim()
+    .toLowerCase();
+  if (normalized === "mpesa_number" || normalized === "mobile_money") {
+    return "M-Pesa Number";
+  }
+  if (normalized === "mpesa_till") return "M-Pesa Till";
+  if (normalized === "mpesa_paybill") return "M-Pesa Paybill";
+  if (normalized === "bank_transfer" || normalized === "bank") {
+    return "Bank Transfer";
+  }
+  return method || "payout method";
+};
 
 const getAffiliatePayoutUserName = (
   affiliate: AffiliatePayoutNotificationSource["affiliate"],
@@ -211,6 +242,7 @@ export async function getAdminNotificationFeed(
     affiliates,
     payouts,
     walletPayouts,
+    restaurantPayouts,
     restaurantApplications,
   ] = (await Promise.all([
     Order.find({
@@ -258,6 +290,12 @@ export async function getAdminNotificationFeed(
       .sort({ createdAt: -1 })
       .limit(limit)
       .lean(),
+    RestaurantPayout.find()
+      .populate("restaurant", "name")
+      .populate("requestedBy", "name email")
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .lean(),
     Restaurant.find({ status: "pending" })
       .populate("ownerId", "name email")
       .sort({ updatedAt: -1 })
@@ -272,6 +310,7 @@ export async function getAdminNotificationFeed(
     AffiliateNotificationSource[],
     AffiliatePayoutNotificationSource[],
     WalletPayoutNotificationSource[],
+    RestaurantPayoutNotificationSource[],
     RestaurantNotificationSource[],
   ];
 
@@ -379,6 +418,24 @@ export async function getAdminNotificationFeed(
         createdAt: asDate(payout.createdAt),
         isUnread: (lastSeenAt ? new Date(payout.createdAt) > lastSeenAt : true) && !readIdsSet.has(id),
         meta: payout.status === "pending" ? "Payout pending" : `Status: ${payout.status}`,
+      };
+    }),
+    ...restaurantPayouts.map((payout) => {
+      const id = `restaurant-payout-${asId(payout._id)}`;
+      return {
+        id,
+        type: "restaurant-payout" as const,
+        title: "Restaurant payout request",
+        description: `${payout.restaurant?.name || "A restaurant"} requested a payout of ${formatCurrency(payout.amount)} via ${formatRestaurantPayoutMethod(payout.payoutMethod)}.`,
+        href: "/admin/restaurant-payouts",
+        createdAt: asDate(payout.createdAt),
+        isUnread:
+          (lastSeenAt ? new Date(payout.createdAt) > lastSeenAt : true) &&
+          !readIdsSet.has(id),
+        meta:
+          payout.status === "pending"
+            ? "Payout pending"
+            : `Status: ${payout.status}`,
       };
     }),
     ...restaurantApplications.map((application) => {

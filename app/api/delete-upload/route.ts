@@ -1,25 +1,39 @@
 import { NextRequest, NextResponse } from "next/server";
 import { UTApi } from "uploadthing/server";
+import { z } from "zod";
+
+import { getServerSession } from "@/lib/get-session";
+import { extractUploadthingFileKey } from "@/lib/uploadthing-media";
 
 const utapi = new UTApi();
 
+const payloadSchema = z
+  .object({
+    url: z.string().trim().optional(),
+    fileKey: z.string().trim().optional(),
+  })
+  .refine((value) => Boolean(value.url || value.fileKey), {
+    message: "Provide either file URL or file key",
+  });
+
 export async function POST(req: NextRequest) {
   try {
-    const { url } = await req.json();
-    if (!url) {
+    const session = await getServerSession();
+    if (!session?.user?.id) {
       return NextResponse.json(
-        { success: false, message: "Missing file URL" },
-        { status: 400 }
+        { success: false, message: "Unauthorized" },
+        { status: 401 },
       );
     }
 
-    // ✅ Extract UploadThing file key from URL
-    const fileKey = url.split("/").pop();
+    const payload = payloadSchema.parse(await req.json());
+    const fileKey =
+      payload.fileKey || (payload.url ? extractUploadthingFileKey(payload.url) : "");
 
     if (!fileKey) {
       return NextResponse.json(
-        { success: false, message: "Invalid file URL" },
-        { status: 400 }
+        { success: false, message: "Invalid UploadThing URL or key" },
+        { status: 400 },
       );
     }
 
@@ -27,12 +41,17 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    console.error("Delete upload error:", error);
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { success: false, message: error.issues[0]?.message || "Invalid payload" },
+        { status: 400 },
+      );
+    }
 
+    console.error("Delete upload error:", error);
     return NextResponse.json(
-      { success: false, message: error.message },
-      { status: 500 }
+      { success: false, message: error?.message || "Failed to delete file" },
+      { status: 500 },
     );
   }
-  }
-      
+}

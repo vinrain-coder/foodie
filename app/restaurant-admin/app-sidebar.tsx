@@ -5,6 +5,7 @@ import {
   IconCategory,
   IconChecklist,
   IconClipboardList,
+  IconCoin,
   IconDashboard,
   IconLayoutGrid,
   IconMapPin,
@@ -50,6 +51,11 @@ const data = {
       title: "Orders",
       url: "/restaurant-admin/orders",
       icon: IconReceipt2,
+    },
+    {
+      title: "Finance",
+      url: "/restaurant-admin/finance",
+      icon: IconCoin,
     },
   ],
   storefront: [

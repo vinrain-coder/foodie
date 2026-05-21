@@ -53,6 +53,7 @@ const iconMap = {
   affiliate: Users,
   "affiliate-payout": HandCoins,
   "wallet-payout": HandCoins,
+  "restaurant-payout": HandCoins,
   restaurant: Store,
 } as const;
 

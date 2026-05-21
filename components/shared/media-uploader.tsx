@@ -1,7 +1,7 @@
 "use client";
 
 import { Field, FieldLabel, FieldError } from "@/components/ui/field";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import { useDropzone } from "react-dropzone";
 import { useUploadThing } from "@/lib/uploadthing";
@@ -15,25 +15,23 @@ import {
 } from "react-hook-form";
 
 import { Card, CardContent } from "@/components/ui/card";
-import { X, Play } from "lucide-react";
+import { X, Play, AlertCircle } from "lucide-react";
+import {
+  dedupeMediaUrls,
+  getMediaTypeFromUrl,
+  getUploadthingFileUrl,
+  isSafeMediaUrl,
+} from "@/lib/uploadthing-media";
 
 type MediaType = "image" | "video";
+type MediaItem = { url: string; type: MediaType };
 
-type MediaItem = {
-  url: string;
-  type: MediaType;
-};
+const MAX_UPLOAD_SIZE_BYTES = 4 * 1024 * 1024;
+const ACCEPTED_TYPES = {
+  "image/*": [],
+  "video/*": [],
+} as const;
 
-const getMediaType = (url: string): MediaType =>
-  /\.(mp4|webm|mov|ogg)$/i.test(url) ? "video" : "image";
-
-/* ---------------- SAFE URL CHECK ---------------- */
-const isValidUrl = (url?: string): url is string =>
-  typeof url === "string" &&
-  url.trim() !== "" &&
-  (url.startsWith("http") || url.startsWith("/"));
-
-/* ---------------- Media Preview ---------------- */
 function MediaPreview({
   item,
   onRemove,
@@ -41,21 +39,36 @@ function MediaPreview({
   item: MediaItem;
   onRemove: () => void;
 }) {
-  if (!isValidUrl(item.url)) return null;
+  const [broken, setBroken] = useState(false);
+
+  if (!isSafeMediaUrl(item.url) || broken) {
+    return (
+      <div className="flex h-28 w-28 shrink-0 items-center justify-center rounded-lg border bg-muted text-muted-foreground">
+        <AlertCircle className="h-5 w-5" />
+      </div>
+    );
+  }
 
   return (
     <div className="relative shrink-0">
       {item.type === "image" ? (
         <Image
           src={item.url}
-          alt="Uploaded media"
+          alt="Uploaded media preview"
           width={120}
           height={120}
           className="h-28 w-28 rounded-lg border object-cover"
+          onError={() => setBroken(true)}
         />
       ) : (
         <div className="relative h-28 w-28 overflow-hidden rounded-lg border bg-black/10">
-          <video src={item.url} className="h-full w-full object-cover" muted />
+          <video
+            src={item.url}
+            className="h-full w-full object-cover"
+            muted
+            preload="metadata"
+            onError={() => setBroken(true)}
+          />
           <div className="absolute inset-0 flex items-center justify-center">
             <Play size={32} className="text-white/80" />
           </div>
@@ -64,11 +77,11 @@ function MediaPreview({
 
       <button
         type="button"
-        onClick={(e) => {
-          e.stopPropagation();
+        onClick={(event) => {
+          event.stopPropagation();
           onRemove();
         }}
-        className="absolute right-2 top-2 rounded-full bg-black/70 p-1 text-white shadow hover:bg-black cursor-pointer"
+        className="absolute right-2 top-2 rounded-full bg-black/70 p-1 text-white shadow hover:bg-black"
       >
         <X size={14} />
       </button>
@@ -76,7 +89,6 @@ function MediaPreview({
   );
 }
 
-/* ---------------- MAIN COMPONENT ---------------- */
 type MediaUploaderProps<TFieldValues extends FieldValues> = {
   form: UseFormReturn<TFieldValues>;
   name: Path<TFieldValues>;
@@ -99,109 +111,138 @@ export default function MediaUploader<TFieldValues extends FieldValues>({
   label,
   uploadRoute,
   multiple = false,
-  maxFiles,
+  maxFiles = multiple ? 6 : 1,
 }: MediaUploaderProps<TFieldValues>) {
-  const rawValue = form.getValues(name) as unknown;
-
-  const initialMedia: MediaItem[] = Array.isArray(rawValue)
-    ? rawValue.filter(isValidUrl).map((url: string) => ({
-        url,
-        type: getMediaType(url),
-      }))
-    : isValidUrl(rawValue as string)
-      ? [{ url: rawValue as string, type: getMediaType(rawValue as string) }]
-      : [];
-
-  const [media, setMedia] = useState<MediaItem[]>(initialMedia);
+  const [media, setMedia] = useState<MediaItem[]>([]);
   const [progress, setProgress] = useState(0);
 
-  /* Sync with RHF */
+  const value = form.watch(name) as unknown;
+
+  const normalizedFromForm = useMemo(() => {
+    const urls = Array.isArray(value) ? value : [value];
+    return dedupeMediaUrls(
+      urls
+        .map((entry) => (typeof entry === "string" ? entry : ""))
+        .filter((entry) => isSafeMediaUrl(entry)),
+    ).map((url) => ({ url, type: getMediaTypeFromUrl(url) }));
+  }, [value]);
+
   useEffect(() => {
-    const value = multiple ? media.map((m) => m.url) : media[0]?.url || "";
+    setMedia(normalizedFromForm);
+  }, [normalizedFromForm]);
 
-    form.setValue(name, value as PathValue<TFieldValues, Path<TFieldValues>>);
-  }, [media, form, name, multiple]);
+  useEffect(() => {
+    const nextValue = multiple ? media.map((item) => item.url) : media[0]?.url || "";
+    form.setValue(name, nextValue as PathValue<TFieldValues, Path<TFieldValues>>, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+  }, [form, media, multiple, name]);
 
-  /* UploadThing */
   const { startUpload, isUploading } = useUploadThing(uploadRoute, {
     onClientUploadComplete: (result) => {
-      if (!result?.length) return;
+      const uploadedUrls = (result || [])
+        .map((file) => getUploadthingFileUrl(file))
+        .filter((url) => isSafeMediaUrl(url));
 
-      const uploaded: MediaItem[] = result
-        .filter((f) => isValidUrl(f.ufsUrl))
-        .map((f) => ({
-          url: f.ufsUrl,
-          type: getMediaType(f.ufsUrl),
-        }));
+      if (uploadedUrls.length === 0) {
+        toast.error("Upload completed but no file URL was returned.");
+        setProgress(0);
+        return;
+      }
+
+      setMedia((previous) => {
+        const next = multiple
+          ? [...previous.map((item) => item.url), ...uploadedUrls]
+          : [uploadedUrls[uploadedUrls.length - 1]];
+        return dedupeMediaUrls(next)
+          .slice(0, maxFiles)
+          .map((url) => ({ url, type: getMediaTypeFromUrl(url) }));
+      });
 
       setProgress(0);
-      setMedia((prev) => [...prev, ...uploaded]);
       toast.success("Upload completed");
     },
     onUploadProgress: setProgress,
     onUploadError: (error) => {
+      setProgress(0);
       toast.error(`Upload failed: ${error.message}`);
     },
   });
 
-  /* Dropzone */
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     multiple,
     maxFiles,
-    accept: {
-      "image/*": [],
-      "video/*": [],
+    maxSize: MAX_UPLOAD_SIZE_BYTES,
+    accept: ACCEPTED_TYPES,
+    disabled: isUploading,
+    onDrop: async (acceptedFiles) => {
+      if (!acceptedFiles.length) return;
+      const result = await startUpload(acceptedFiles);
+      if (!result) {
+        toast.error("Upload did not start. Please retry.");
+      }
     },
-    onDrop: (files) => {
-      void startUpload(files);
+    onDropRejected: (rejections) => {
+      const firstError = rejections[0]?.errors[0];
+      if (firstError?.code === "file-too-large") {
+        toast.error("File is too large. Max size is 4MB.");
+        return;
+      }
+      toast.error(firstError?.message || "Some files were rejected.");
     },
   });
 
-  /* Remove file */
   const handleRemove = async (url: string) => {
     try {
-      await fetch("/api/delete-upload", {
+      const response = await fetch("/api/delete-upload", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url }),
       });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok || !payload?.success) {
+        throw new Error(payload?.message || "Failed to delete file");
+      }
 
-      setMedia((prev) => prev.filter((m) => m.url !== url));
+      setMedia((previous) => previous.filter((item) => item.url !== url));
       toast.success("File deleted");
-    } catch {
-      toast.error("Failed to delete uploaded file");
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to delete uploaded file");
     }
   };
 
-  /* Paste support */
   useEffect(() => {
+    if (isUploading) return;
+
     const handlePaste = (event: ClipboardEvent) => {
       const items = Array.from(event.clipboardData?.items || []);
-
       const files: File[] = [];
 
-      items.forEach((item) => {
-        if (item.type.startsWith("image/")) {
-          const file = item.getAsFile();
-          if (file) {
-            files.push(
-              new File([file], `pasted-${Date.now()}.png`, {
-                type: file.type,
-              }),
-            );
-          }
+      for (const item of items) {
+        if (!item.type.startsWith("image/")) continue;
+        const file = item.getAsFile();
+        if (!file) continue;
+        if (file.size > MAX_UPLOAD_SIZE_BYTES) {
+          toast.error("Pasted image is too large. Max size is 4MB.");
+          return;
         }
-      });
+        files.push(
+          new File([file], `pasted-${Date.now()}-${files.length}.png`, {
+            type: file.type,
+          }),
+        );
+      }
 
       if (files.length) {
         void startUpload(files);
-        toast.success("Pasted image(s) uploading...");
+        toast.success("Pasted image uploading...");
       }
     };
 
     window.addEventListener("paste", handlePaste);
     return () => window.removeEventListener("paste", handlePaste);
-  }, [startUpload]);
+  }, [isUploading, startUpload]);
 
   return (
     <Controller
@@ -213,7 +254,7 @@ export default function MediaUploader<TFieldValues extends FieldValues>({
 
           <Card>
             <CardContent className="space-y-4 pt-4">
-              {media.length > 0 && (
+              {media.length > 0 ? (
                 <div className="flex gap-3 overflow-x-auto pb-2">
                   {media.map((item) => (
                     <MediaPreview
@@ -223,33 +264,40 @@ export default function MediaUploader<TFieldValues extends FieldValues>({
                     />
                   ))}
                 </div>
-              )}
+              ) : null}
 
               <div
                 {...getRootProps()}
-                className={`cursor-pointer rounded-xl border-2 border-dashed p-6 text-center transition ${
+                className={`rounded-xl border-2 border-dashed p-6 text-center transition ${
+                  isUploading
+                    ? "cursor-not-allowed opacity-70"
+                    : "cursor-pointer"
+                } ${
                   isDragActive
                     ? "border-primary bg-primary/10"
                     : "border-muted-foreground/30 bg-muted"
                 }`}
               >
                 <input {...getInputProps()} />
-                <p className="text-xs mt-1 text-muted-foreground">
-                  Drag & drop, click to upload, or paste (Ctrl+V)
+                <p className="text-xs text-muted-foreground">
+                  Drag and drop, click to upload, or paste image (Ctrl+V)
+                </p>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  Supported: images/videos up to 4MB
                 </p>
               </div>
 
-              {isUploading && (
+              {isUploading ? (
                 <div>
                   <div className="h-3 rounded-full bg-gray-200">
                     <div
-                      className="h-3 rounded-full bg-primary"
+                      className="h-3 rounded-full bg-primary transition-all"
                       style={{ width: `${progress}%` }}
                     />
                   </div>
                   <p className="text-center text-sm">{progress}%</p>
                 </div>
-              )}
+              ) : null}
             </CardContent>
           </Card>
 

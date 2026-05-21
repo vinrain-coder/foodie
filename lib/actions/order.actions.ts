@@ -61,6 +61,10 @@ import { cookies } from "next/headers";
 import Restaurant from "../db/models/restaurant.model";
 import { canAccessAdminDashboard } from "@/lib/dashboard-access";
 import { getStaffScope } from "@/lib/staff-scope";
+import {
+  recordRestaurantSettlementForPaidOrder,
+  reverseRestaurantSettlementForOrder,
+} from "./restaurant-finance.actions";
 
 export type SerializedOrder = Omit<IOrder, "_id"> & { _id: string };
 
@@ -602,6 +606,16 @@ const runStatusTransition = async ({
       refundToWallet: true,
       session,
     });
+    const reversalResult = await reverseRestaurantSettlementForOrder({
+      orderId: order._id.toString(),
+      reason: "Order cancelled",
+    });
+    if (!reversalResult.success) {
+      console.error(
+        "Non-critical: Failed to reverse restaurant settlement:",
+        reversalResult.message,
+      );
+    }
     order.paymentStatus = "cancelled";
     order.remainingAmount = 0;
   }
@@ -1299,7 +1313,27 @@ export const runPostPaymentSideEffects = async (orderId: string) => {
     );
   }
 
-  // 5. Send purchase receipt
+  // 5. Capture restaurant settlement
+  try {
+    if (order.restaurant) {
+      const captureResult = await recordRestaurantSettlementForPaidOrder(
+        order._id.toString(),
+      );
+      if (!captureResult.success) {
+        console.error(
+          "Non-critical: Failed to capture restaurant settlement:",
+          captureResult.message,
+        );
+      }
+    }
+  } catch (settlementError) {
+    console.error(
+      "Non-critical: Failed to run restaurant settlement capture:",
+      settlementError,
+    );
+  }
+
+  // 6. Send purchase receipt
   try {
     const populatedOrder = await Order.findById(orderId).populate(
       "user",

@@ -15,6 +15,7 @@ import { notFound } from "next/navigation";
 import { MenuItemInputSchema, MenuItemUpdateSchema } from "../validator";
 import { getStaffScope } from "@/lib/staff-scope";
 import Restaurant from "@/lib/db/models/restaurant.model";
+import { extractUploadthingFileKey } from "@/lib/uploadthing-media";
 
 const utapi = new UTApi(); // Initialize UTApi instance
 
@@ -296,7 +297,7 @@ export async function deleteMenuItem(id: string) {
     if (menuItem.images && menuItem.images.length > 0) {
       await Promise.all(
         menuItem.images.map(async (imageUrl: string) => {
-          const fileKeys = imageUrl.split("/").pop(); // Extract file key
+          const fileKeys = extractUploadthingFileKey(imageUrl);
           if (fileKeys) {
             await utapi.deleteFiles(fileKeys); // Use the UTApi instance
           }
