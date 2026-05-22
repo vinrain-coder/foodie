@@ -1,7 +1,7 @@
 import { connection } from "next/server";
 import { NextRequest, NextResponse } from "next/server";
-import { getOrderByTrackingNumber } from "@/lib/actions/order.actions";
 import { hitTrackingLookupLimit } from "@/lib/tracking-rate-limit";
+import { getLiveTrackingSnapshotByTrackingNumber } from "@/lib/tracking/live-tracking";
 
 export async function GET(
   request: NextRequest,
@@ -34,23 +34,16 @@ export async function GET(
     return NextResponse.json({ message: "Invalid tracking number." }, { status: 400 });
   }
 
-  const order = await getOrderByTrackingNumber(normalizedTrackingNumber);
-  if (!order) {
+  const snapshot = await getLiveTrackingSnapshotByTrackingNumber(
+    normalizedTrackingNumber,
+    "public",
+  );
+  if (!snapshot) {
     return NextResponse.json({ message: "Tracking number not found." }, { status: 404 });
   }
 
-  const sanitized = {
-    ...order,
-    shippingAddress: {
-      fullName: order.shippingAddress?.fullName,
-      city: order.shippingAddress?.city,
-      country: order.shippingAddress?.country,
-      street: "Hidden for privacy",
-    },
-  };
-
   return NextResponse.json({
-    data: sanitized,
+    data: snapshot,
     now: new Date().toISOString(),
   });
 }

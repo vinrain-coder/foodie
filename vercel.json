@@ -1,0 +1,16 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/rider-dispatch-expiry",
+      "schedule": "*/1 * * * *"
+    },
+    {
+      "path": "/api/cron/rider-tracking-maintenance",
+      "schedule": "*/10 * * * *"
+    },
+    {
+      "path": "/api/cron/rider-finance-ops",
+      "schedule": "15 1 * * *"
+    }
+  ]
+}

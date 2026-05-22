@@ -22,6 +22,7 @@ import { getAllCategoriesForStore } from "@/lib/actions/category.actions";
 import { getAllTagsForStore } from "@/lib/actions/tag.actions";
 import AffiliatePromo from "@/components/shared/home/affiliate-promo";
 import CouponPromo from "@/components/shared/home/coupon-promo";
+import RiderPromo from "@/components/shared/home/rider-promo";
 import { toAbsoluteUrl } from "@/lib/seo";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -331,9 +332,10 @@ export default async function HomePage() {
             </Suspense>
           </section>
 
-          <section className="grid gap-6 xl:grid-cols-2">
+          <section className="grid gap-6 xl:grid-cols-3">
             <AffiliatePromo />
             <CouponPromo />
+            <RiderPromo />
           </section>
 
           <section className="rounded-3xl border border-border/60 bg-card/70 p-5 shadow-lg shadow-black/5 md:p-7">

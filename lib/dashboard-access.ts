@@ -39,6 +39,10 @@ export function isRestaurantRole(role?: string | null): role is "RESTAURANT" {
   return parseRoleTokens(role).includes("RESTAURANT");
 }
 
+export function isRiderRole(role?: string | null): role is "RIDER" {
+  return parseRoleTokens(role).includes("RIDER");
+}
+
 export function canAccessAdminDashboard(
   role?: string | null,
 ): role is Extract<UserRole, "ADMIN" | "RESTAURANT"> {
@@ -49,4 +53,10 @@ export function canAccessRestaurantDashboard(
   role?: string | null,
 ): role is Extract<UserRole, "ADMIN" | "RESTAURANT"> {
   return isRestaurantRole(role) || isAdminRole(role);
+}
+
+export function canAccessRiderDashboard(
+  role?: string | null,
+): role is Extract<UserRole, "ADMIN" | "RIDER"> {
+  return isRiderRole(role) || isAdminRole(role);
 }

@@ -14,6 +14,9 @@ const sortOrders = [
   { value: "oldest", name: "Oldest" },
   { value: "name-asc", name: "Name: A to Z" },
   { value: "name-desc", name: "Name: Z to A" },
+  { value: "rating-high", name: "Rating: High to low" },
+  { value: "rating-low", name: "Rating: Low to high" },
+  { value: "most-reviewed", name: "Most reviewed" },
 ];
 
 type RestaurantsSortParams = {

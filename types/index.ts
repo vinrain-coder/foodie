@@ -14,6 +14,7 @@ import {
   OrderItemSchema,
   PaymentMethodSchema,
   ReviewInputSchema,
+  RestaurantReviewInputSchema,
   SettingInputSchema,
   ShippingAddressSchema,
   SiteCurrencySchema,
@@ -30,6 +31,7 @@ import {
 import { z } from "zod";
 
 export type IReviewInput = z.infer<typeof ReviewInputSchema>;
+export type IRestaurantReviewInput = z.infer<typeof RestaurantReviewInputSchema>;
 export type IReviewDetails = IReviewInput & {
   _id: string;
   createdAt: string;
@@ -41,6 +43,15 @@ export type IReviewDetails = IReviewInput & {
     message: string;
     repliedAt: string;
     repliedBy?: string;
+  };
+};
+
+export type IRestaurantReviewDetails = IRestaurantReviewInput & {
+  _id: string;
+  createdAt: string;
+  user: {
+    _id?: string;
+    name: string;
   };
 };
 export type IMenuItemInput = z.infer<typeof MenuItemInputSchema>;

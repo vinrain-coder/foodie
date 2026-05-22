@@ -15,7 +15,11 @@ import {
 import { SidebarMenu, SidebarMenuItem } from "@/components/ui/sidebar";
 import { authClient } from "@/lib/auth-client";
 import Link from "next/link";
-import { canAccessAdminDashboard, isRestaurantRole } from "@/lib/dashboard-access";
+import {
+  canAccessAdminDashboard,
+  isRestaurantRole,
+  isRiderRole,
+} from "@/lib/dashboard-access";
 import {
   HeartIcon,
   MessageCircle,
@@ -27,6 +31,7 @@ import {
   UserIcon,
   UtensilsCrossed,
   Users,
+  Bike,
 } from "lucide-react";
 import { SignOutButton } from "../sign-out-button";
 
@@ -37,6 +42,7 @@ export function UserSidebar() {
     session?.user?.role,
   );
   const restaurantUser = isRestaurantRole(session?.user?.role);
+  const riderUser = isRiderRole(session?.user?.role);
 
   if (isPending)
     return <div className="w-12 h-12 bg-gray-200 rounded-full animate-pulse" />; // placeholder
@@ -225,6 +231,17 @@ export function UserSidebar() {
                   >
                     <Users className="h-4 w-4" />
                     Affiliate Dashboard
+                  </Link>
+                </DropdownMenuItem>
+              )}
+              {riderUser && (
+                <DropdownMenuItem asChild onSelect={handleSelect}>
+                  <Link
+                    href="/rider/jobs"
+                    className="flex items-center gap-2 w-full cursor-pointer"
+                  >
+                    <Bike className="h-4 w-4" />
+                    Rider Dashboard
                   </Link>
                 </DropdownMenuItem>
               )}

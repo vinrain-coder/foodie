@@ -23,6 +23,7 @@ import {
   IconMapPin,
   IconCoin,
   IconWallet,
+  IconUser,
 } from "@tabler/icons-react";
 
 import { NavMain } from "@/app/admin/nav-main";
@@ -82,6 +83,16 @@ const data = {
       title: "Delivery Locations",
       url: "/admin/delivery-locations",
       icon: IconMapPin,
+    },
+    {
+      title: "Riders",
+      url: "/admin/riders",
+      icon: IconUser,
+    },
+    {
+      title: "Rider Dispatch",
+      url: "/admin/rider-dispatch",
+      icon: IconChecklist,
     },
   ],
   finance: [
@@ -182,7 +193,7 @@ export function AppSidebar({
   const restaurant = isRestaurantRole(userRole);
   const operations = restaurant
     ? data.operations.filter(
-        (item) => !["Coupons", "Users", "Restaurants"].includes(item.title),
+        (item) => !["Coupons", "Users", "Restaurants", "Riders"].includes(item.title),
       )
     : data.operations;
   const finance = restaurant ? [] : data.finance;

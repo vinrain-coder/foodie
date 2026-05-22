@@ -8,6 +8,7 @@ import {
   Bike,
   HandPlatter,
   MapPin,
+  Star,
   UtensilsCrossed,
 } from "lucide-react";
 
@@ -110,6 +111,10 @@ export default function RestaurantCard({
             <span className="inline-flex items-center gap-1 rounded-full border border-border/70 px-2 py-0.5 text-muted-foreground">
               <MapPin className="h-3.5 w-3.5" />
               {restaurant.location}
+            </span>
+            <span className="inline-flex items-center gap-1 rounded-full border border-border/70 px-2 py-0.5 text-muted-foreground">
+              <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+              {restaurant.avgRating.toFixed(1)} ({restaurant.numReviews})
             </span>
           </div>
 

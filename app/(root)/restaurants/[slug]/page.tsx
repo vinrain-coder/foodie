@@ -17,7 +17,9 @@ import {
 import { getSetting } from "@/lib/actions/setting.actions";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency } from "@/lib/utils";
+import { getServerSession } from "@/lib/get-session";
 import { Bike, Clock3, HandPlatter, Mail, MapPin, Phone, UtensilsCrossed } from "lucide-react";
+import RestaurantReviewList from "./restaurant-review-list";
 
 const sortOrders = [
   { value: "price-low-to-high", name: "Price: Low to high" },
@@ -70,7 +72,10 @@ export default async function RestaurantDetailsPage({
   const { slug } = await params;
   const sp = await searchParams;
 
-  const restaurant = await getRestaurantBySlugForStorefront(slug);
+  const [restaurant, session] = await Promise.all([
+    getRestaurantBySlugForStorefront(slug),
+    getServerSession(),
+  ]);
   if (!restaurant) notFound();
 
   const q = Array.isArray(sp.q) ? sp.q[0] : sp.q;
@@ -155,6 +160,10 @@ export default async function RestaurantDetailsPage({
             <div className="rounded-lg border bg-muted/30 px-4 py-3 text-sm">
               <div className="font-semibold">{restaurant.menuItemsCount} menu items</div>
               <div className="text-muted-foreground">
+                {restaurant.avgRating.toFixed(1)} rating ({restaurant.numReviews}{" "}
+                review{restaurant.numReviews === 1 ? "" : "s"})
+              </div>
+              <div className="text-muted-foreground">
                 Minimum order: {formatCurrency(restaurant.minimumOrderAmount)}
               </div>
             </div>
@@ -232,6 +241,17 @@ export default async function RestaurantDetailsPage({
           ) : null}
         </div>
       </div>
+
+      <section
+        className="rounded-3xl border border-border/60 bg-card/75 p-5 shadow-lg shadow-black/5 md:p-6"
+        id="reviews"
+      >
+        <h2 className="mb-2 text-xl font-semibold">Restaurant Reviews</h2>
+        <RestaurantReviewList
+          restaurant={restaurant}
+          userId={session?.user?.id || ""}
+        />
+      </section>
     </div>
   );
 }

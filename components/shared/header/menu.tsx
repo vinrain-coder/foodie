@@ -30,6 +30,7 @@ import Link from "next/link";
 import { SignOutButton } from "../sign-out-button";
 import {
   canAccessAdminDashboard,
+  isRiderRole,
   isRestaurantRole,
 } from "@/lib/dashboard-access";
 
@@ -40,6 +41,7 @@ const Menu = ({ forAdmin = false }: { forAdmin?: boolean }) => {
     session?.user?.role,
   );
   const restaurantUser = isRestaurantRole(session?.user?.role);
+  const riderUser = isRiderRole(session?.user?.role);
 
   return (
     <div className="flex justify-end">
@@ -98,6 +100,7 @@ const Menu = ({ forAdmin = false }: { forAdmin?: boolean }) => {
                       { href: "/", label: "Home" },
                       { href: "/search", label: "Shop all menu items" },
                       { href: "/restaurants", label: "Restaurants" },
+                      { href: "/rider", label: "Rider Hub" },
                       { href: "/categories", label: "Categories" },
                       { href: "/blogs", label: "Blogs" },
                       { href: "/track", label: "Track order" },
@@ -198,6 +201,16 @@ const Menu = ({ forAdmin = false }: { forAdmin?: boolean }) => {
                             className="item-button"
                           >
                             <span>Restaurant Application</span>
+                          </Link>
+                        )}
+                        {riderUser && (
+                          <Link
+                            href="/rider/jobs"
+                            prefetch
+                            onClick={() => setOpen(false)}
+                            className="item-button"
+                          >
+                            <span>Rider Dashboard</span>
                           </Link>
                         )}
                         <div className="pt-3">

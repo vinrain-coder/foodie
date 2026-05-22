@@ -98,6 +98,8 @@ export interface IOrder extends Document {
   overdueDays?: number;
   status: OrderTrackingStatus;
   trackingNumber: string;
+  deliveryJob?: Types.ObjectId | string;
+  assignedRider?: Types.ObjectId | string;
   shipment?: IOrderShipment;
   trackingHistory: IOrderTrackingHistoryEvent[];
   isExchangeInitiated?: boolean;
@@ -131,6 +133,18 @@ const orderSchema = new Schema<IOrder>(
     trackingNumber: {
       type: String,
       default: generateTrackingNumber,
+    },
+    deliveryJob: {
+      type: Schema.Types.ObjectId,
+      ref: "DeliveryJob",
+      required: false,
+      index: true,
+    },
+    assignedRider: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: false,
+      index: true,
     },
     status: {
       type: String,

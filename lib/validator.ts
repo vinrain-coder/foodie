@@ -38,6 +38,18 @@ export const ReviewInputSchema = z.object({
     .max(5, "Rating must be at most 5"),
 });
 
+export const RestaurantReviewInputSchema = z.object({
+  restaurant: z.string().min(1, "Restaurant ID is required"),
+  user: z.string().min(1, "User ID is required"),
+  title: z.string().min(1, "Title is required"),
+  comment: z.string().min(1, "Comment is required"),
+  rating: z.coerce
+    .number()
+    .int()
+    .min(1, "Rating must be at least 1")
+    .max(5, "Rating must be at most 5"),
+});
+
 const MenuItemInputBase = z.object({
   name: z.string().min(3, "Name must be at least 3 characters"),
   slug: z.string().min(3, "Slug must be at least 3 characters"),
@@ -908,6 +920,122 @@ export const DeliveryLocationInputSchema = z.object({
 
 export const DeliveryLocationUpdateSchema = DeliveryLocationInputSchema.extend({
   _id: MongoId,
+});
+
+// Rider Registration
+
+export const RiderRegistrationInputSchema = z
+  .object({
+    fullName: z
+      .string()
+      .trim()
+      .min(2, "Full name is required")
+      .max(120, "Name is too long"),
+    phone: z
+      .string()
+      .trim()
+      .min(7, "Phone number is too short")
+      .max(20, "Phone number is too long")
+      .regex(/^[+0-9()\s-]+$/, "Phone number contains invalid characters"),
+    location: z
+      .string()
+      .trim()
+      .min(5, "Location is required")
+      .max(300, "Location is too long"),
+    vehicleType: z.enum(["bicycle", "motorbike", "car", "van"]).default("motorbike"),
+    capacity: z.coerce.number().int("Capacity must be a whole number").min(1).max(10).default(1),
+    plateNumber: z.string().trim().max(30).optional().or(z.literal("")),
+    licenseNumber: z
+      .string()
+      .trim()
+      .min(3, "License number is required")
+      .max(50, "License number is too long"),
+    nationalIdNumber: z
+      .string()
+      .trim()
+      .min(3, "National ID is required")
+      .max(50, "National ID is too long"),
+    identityDocumentUrl: z
+      .string()
+      .url("Identity document must be a valid URL")
+      .optional()
+      .or(z.literal("")),
+    selfieUrl: z.string().url("Selfie must be a valid URL").optional().or(z.literal("")),
+    vehicleLicenseUrl: z
+      .string()
+      .url("Vehicle license must be a valid URL")
+      .optional()
+      .or(z.literal("")),
+    vehicleInsuranceUrl: z
+      .string()
+      .url("Insurance must be a valid URL")
+      .optional()
+      .or(z.literal("")),
+    vehiclePhotoUrl: z
+      .string()
+      .url("Vehicle photo must be a valid URL")
+      .optional()
+      .or(z.literal("")),
+    termsAccepted: z.boolean().refine((v) => v === true, {
+      message: "You must accept the platform terms",
+    }),
+    attestationAccepted: z.boolean().refine((v) => v === true, {
+      message: "You must attest that all information is accurate",
+    }),
+    website: z.string().max(0).optional().or(z.literal("")),
+  })
+  .refine(
+    (data) => {
+      // identity document + selfie required for KYC
+      if (!data.identityDocumentUrl || !data.selfieUrl) return false;
+      return true;
+    },
+    {
+      message: "Identity document and selfie are required",
+      path: ["identityDocumentUrl"],
+    },
+  )
+  .refine(
+    (data) => {
+      // at least vehicle license or vehicle photo is required
+      if (!data.vehicleLicenseUrl && !data.vehiclePhotoUrl) return false;
+      return true;
+    },
+    {
+      message: "Vehicle license or vehicle photo is required",
+      path: ["vehicleLicenseUrl"],
+    },
+  );
+
+export const RiderProfileUpdateSchema = z.object({
+  fullName: z
+    .string()
+    .trim()
+    .min(2, "Full name is required")
+    .max(120, "Name is too long")
+    .optional(),
+  phone: z
+    .string()
+    .trim()
+    .min(7, "Phone number is too short")
+    .max(20, "Phone number is too long")
+    .regex(/^[+0-9()\s-]+$/, "Phone number contains invalid characters")
+    .optional(),
+  location: z
+    .string()
+    .trim()
+    .min(5, "Location is required")
+    .max(300, "Location is too long")
+    .optional(),
+  vehicleType: z.enum(["bicycle", "motorbike", "car", "van"]).optional(),
+  capacity: z.coerce.number().int().min(1).max(10).optional(),
+  plateNumber: z.string().trim().max(30).optional().or(z.literal("")),
+  licenseNumber: z
+    .string()
+    .trim()
+    .min(3, "License number is required")
+    .max(50, "License number is too long")
+    .optional(),
 });
 
 export const SupportTicketInputSchema = z.object({

@@ -25,6 +25,9 @@ export interface IRestaurant extends Document {
   acceptsDelivery: boolean;
   acceptsPickup: boolean;
   averagePrepTimeMinutes?: number;
+  avgRating: number;
+  numReviews: number;
+  ratingDistribution: { rating: number; count: number }[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -79,6 +82,17 @@ const restaurantSchema = new Schema<IRestaurant>(
     acceptsDelivery: { type: Boolean, default: true },
     acceptsPickup: { type: Boolean, default: false },
     averagePrepTimeMinutes: { type: Number, default: 30 },
+    avgRating: { type: Number, default: 0, min: 0, max: 5 },
+    numReviews: { type: Number, default: 0, min: 0 },
+    ratingDistribution: {
+      type: [
+        {
+          rating: { type: Number, required: true, min: 1, max: 5 },
+          count: { type: Number, required: true, min: 0, default: 0 },
+        },
+      ],
+      default: [],
+    },
   },
   { timestamps: true },
 );

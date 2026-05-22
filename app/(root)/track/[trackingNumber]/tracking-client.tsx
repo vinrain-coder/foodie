@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatDateTime } from "@/lib/utils";
 import { OrderTrackingStatus } from "@/lib/order-tracking";
@@ -49,9 +49,14 @@ export default function TrackingClient({
 }) {
   const [data, setData] = useState<TrackingPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [streamState, setStreamState] = useState<
+    "connecting" | "live" | "fallback"
+  >("connecting");
+  const streamLiveRef = useRef(false);
 
   useEffect(() => {
     let mounted = true;
+    let eventSource: EventSource | null = null;
     const fetchTracking = async () => {
       const response = await fetch(
         `/api/tracking/${encodeURIComponent(trackingNumber)}`,
@@ -71,12 +76,60 @@ export default function TrackingClient({
       setData(payload.data);
     };
 
-    fetchTracking();
-    const intervalId = setInterval(fetchTracking, 15000);
+    fetchTracking().catch(() => {
+      // no-op: handled in fetchTracking
+    });
+
+    try {
+      eventSource = new EventSource(
+        `/api/tracking/${encodeURIComponent(trackingNumber)}/stream`,
+      );
+
+      eventSource.addEventListener("tracking.update", (event) => {
+        if (!mounted) return;
+        try {
+          const payload = JSON.parse((event as MessageEvent).data);
+          setData(payload);
+          setError(null);
+          streamLiveRef.current = true;
+          setStreamState("live");
+        } catch {
+          // no-op
+        }
+      });
+
+      eventSource.addEventListener("tracking.error", (event) => {
+        if (!mounted) return;
+        try {
+          const payload = JSON.parse((event as MessageEvent).data);
+          setError(payload?.message || "Tracking stream error.");
+        } catch {
+          setError("Tracking stream error.");
+        }
+      });
+
+      eventSource.onerror = () => {
+        if (!mounted) return;
+        streamLiveRef.current = false;
+        setStreamState("fallback");
+      };
+    } catch {
+      streamLiveRef.current = false;
+      setStreamState("fallback");
+    }
+
+    const intervalId = setInterval(() => {
+      if (!streamLiveRef.current) {
+        void fetchTracking();
+      }
+    }, 15000);
 
     return () => {
       mounted = false;
       clearInterval(intervalId);
+      if (eventSource) {
+        eventSource.close();
+      }
     };
   }, [trackingNumber]);
 
@@ -125,6 +178,9 @@ export default function TrackingClient({
                 ).timeOnly
               }
               )
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Live tracking: {streamState === "live" ? "connected" : "reconnecting"}
             </p>
             <p className="text-sm">
               Courier: {data.shipment?.courierName || "Pending assignment"}

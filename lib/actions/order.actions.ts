@@ -65,6 +65,10 @@ import {
   recordRestaurantSettlementForPaidOrder,
   reverseRestaurantSettlementForOrder,
 } from "./restaurant-finance.actions";
+import {
+  createDeliveryJobForPackedOrder,
+  markDeliveryJobCancelledByOrder,
+} from "./rider.actions";
 
 export type SerializedOrder = Omit<IOrder, "_id"> & { _id: string };
 
@@ -1506,6 +1510,13 @@ export async function updateOrderStatus({
 
     await notify();
 
+    if (normalizedStatus === "packed") {
+      await createDeliveryJobForPackedOrder(order._id.toString());
+    }
+    if (normalizedStatus === "cancelled") {
+      await markDeliveryJobCancelledByOrder(order._id.toString());
+    }
+
     if (normalizedStatus === "delivered") {
       const finalEmail =
         order.userEmail || (order.user as unknown as { email?: string })?.email;
@@ -1657,6 +1668,7 @@ export async function cancelOrder(orderId: string, accessToken?: string) {
     }
 
     await notificationTrigger();
+    await markDeliveryJobCancelledByOrder(orderId);
 
     await sendAdminEventNotification({
       title: "Order cancelled",

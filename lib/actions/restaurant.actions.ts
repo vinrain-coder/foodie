@@ -37,6 +37,7 @@ import RestaurantBalance from "../db/models/restaurant-balance.model";
 import RestaurantLedgerEntry from "../db/models/restaurant-ledger-entry.model";
 import RestaurantPayoutAccount from "../db/models/restaurant-payout-account.model";
 import RestaurantPayout from "../db/models/restaurant-payout.model";
+import RestaurantReview from "../db/models/restaurant-review.model";
 import mongoose from "mongoose";
 import {
   isAdminRole,
@@ -80,6 +81,9 @@ export type StorefrontRestaurantCard = {
   minimumOrderAmount: number;
   deliveryFee: number;
   menuItemsCount: number;
+  avgRating: number;
+  numReviews: number;
+  ratingDistribution: { rating: number; count: number }[];
 };
 
 export type MenuItemRestaurantSummary = {
@@ -812,6 +816,7 @@ export async function deleteRestaurantByAdmin(id: string): Promise<ActionState> 
     }
 
     await Promise.all([
+      RestaurantReview.deleteMany({ restaurant: restaurantId }),
       Order.deleteMany(orderFilter),
       MenuItem.deleteMany({ restaurant: restaurantId }),
       RestaurantLedgerEntry.deleteMany({ restaurant: restaurantId }),
@@ -895,7 +900,14 @@ export async function getAllRestaurantsForStorefront({
   cuisine?: string;
   service?: "all" | "delivery" | "pickup" | "both";
   location?: string;
-  sort?: "newest" | "oldest" | "name-asc" | "name-desc";
+  sort?:
+    | "newest"
+    | "oldest"
+    | "name-asc"
+    | "name-desc"
+    | "rating-high"
+    | "rating-low"
+    | "most-reviewed";
   page?: number;
   limit?: number;
 }) {
@@ -951,6 +963,12 @@ export async function getAllRestaurantsForStorefront({
         ? { name: 1 }
         : sort === "name-desc"
           ? { name: -1 }
+          : sort === "rating-high"
+            ? { avgRating: -1, numReviews: -1, createdAt: -1 }
+            : sort === "rating-low"
+              ? { avgRating: 1, createdAt: -1 }
+              : sort === "most-reviewed"
+                ? { numReviews: -1, avgRating: -1, createdAt: -1 }
           : { createdAt: -1 };
 
   const skip = (Math.max(1, Number(page)) - 1) * pageLimit;
@@ -992,6 +1010,9 @@ export async function getAllRestaurantsForStorefront({
     minimumOrderAmount: Number(restaurant.minimumOrderAmount || 0),
     deliveryFee: Number(restaurant.deliveryFee || 0),
     menuItemsCount: countsMap.get(restaurant._id.toString()) || 0,
+    avgRating: Number(restaurant.avgRating || 0),
+    numReviews: Number(restaurant.numReviews || 0),
+    ratingDistribution: restaurant.ratingDistribution || [],
   }));
 
   return {
@@ -1038,6 +1059,9 @@ export async function getRestaurantBySlugForStorefront(slug: string) {
     deliveryFee: Number(restaurant.deliveryFee || 0),
     minimumOrderAmount: Number(restaurant.minimumOrderAmount || 0),
     menuItemsCount,
+    avgRating: Number(restaurant.avgRating || 0),
+    numReviews: Number(restaurant.numReviews || 0),
+    ratingDistribution: restaurant.ratingDistribution || [],
   };
 }
 

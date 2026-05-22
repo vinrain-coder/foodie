@@ -23,6 +23,7 @@ import Facebook from "@/public/icons/facebook.svg";
 import Instagram from "@/public/icons/instagram.svg";
 import NewsletterSubscribe from "@/components/shared/newsletter-subscribe";
 import { authClient } from "@/lib/auth-client";
+import { isRiderRole } from "@/lib/dashboard-access";
 
 export default function Footer() {
   const [mounted, setMounted] = useState(false);
@@ -39,6 +40,7 @@ export default function Footer() {
 
   const isAuthenticated = mounted && !!session?.user;
   const isAdmin = mounted && session?.user?.role === "ADMIN";
+  const isRider = mounted && isRiderRole(session?.user?.role);
 
   const whatsappNumber = socialMedia.whatsapp || "";
   const message = encodeURIComponent(`Hello, ${site.name}!`);
@@ -85,6 +87,14 @@ export default function Footer() {
           { label: "Wishlist", href: "/account/wishlist" },
           { label: "Cart", href: "/cart" },
           { label: "Browsing History", href: "/browsing-history" },
+          ...(isRider
+            ? [
+                {
+                  label: "Rider Dashboard",
+                  href: "/rider/jobs",
+                },
+              ]
+            : []),
           ...(isAdmin
             ? [
                 {
@@ -93,6 +103,15 @@ export default function Footer() {
                 },
               ]
             : []),
+        ],
+      },
+      {
+        title: "Riders",
+        links: [
+          { label: "Rider Hub", href: "/rider" },
+          { label: "Rider Dashboard", href: "/rider/jobs" },
+          { label: "Track Assigned Deliveries", href: "/track" },
+          { label: "Delivery Support", href: "/support" },
         ],
       },
       {
@@ -115,6 +134,7 @@ export default function Footer() {
         title: "Make Money with Us",
         links: [
           { label: "Become an Affiliate", href: "/affiliate" },
+          { label: "Apply as Rider", href: "/rider" },
           {
             label: `Sell products on ${site.name}`,
             href: "/page/sell-products",
@@ -146,7 +166,7 @@ export default function Footer() {
         ],
       },
     ],
-    [isAdmin, site?.name],
+    [isAdmin, isRider, site?.name],
   );
 
   return (

@@ -98,6 +98,12 @@ export default function Sidebar({ categories }: SidebarProps) {
             </DrawerClose>
 
             <DrawerClose asChild>
+              <Link href="/rider" className="item-button rounded-md px-4 py-2">
+                Rider Hub
+              </Link>
+            </DrawerClose>
+
+            <DrawerClose asChild>
               <Link
                 href="/page/customer-service"
                 className="item-button rounded-md px-4 py-2"

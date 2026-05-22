@@ -35,7 +35,7 @@ import ActionButton from "../action-button";
 import dynamic from "next/dynamic";
 import { authClient } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import CopyButton from "../copy-button";
 import { OrderPdfDownloadLinks } from "./order-pdf-download-links";
 import Price from "../menuItem/price";
@@ -61,6 +61,61 @@ export default function OrderDetailsForm({
   const { data: session } = authClient.useSession();
   const router = useRouter();
   const [nextStatus, setNextStatus] = useState(order.status);
+  const [trackingStreamState, setTrackingStreamState] = useState<
+    "connecting" | "live" | "fallback"
+  >("connecting");
+  const [liveTrackingMeta, setLiveTrackingMeta] = useState<{
+    etaDriftMinutes?: number;
+    routeDeviationM?: number;
+    alertFlags?: string[];
+    heartbeatAt?: string;
+  } | null>(null);
+  const hasRefreshedFromStreamRef = useRef(false);
+
+  useEffect(() => {
+    let source: EventSource | null = null;
+    let mounted = true;
+
+    try {
+      source = new EventSource(
+        `/api/tracking/${encodeURIComponent(order.trackingNumber)}/stream`,
+      );
+      source.addEventListener("tracking.update", (event) => {
+        if (!mounted) return;
+        try {
+          const payload = JSON.parse((event as MessageEvent).data);
+          setTrackingStreamState("live");
+          setLiveTrackingMeta({
+            etaDriftMinutes: payload?.live?.etaDriftMinutes,
+            routeDeviationM: payload?.live?.routeDeviationM,
+            alertFlags: payload?.live?.latestAlertFlags || [],
+            heartbeatAt: payload?.live?.heartbeatAt,
+          });
+          if (
+            payload?.status &&
+            payload.status !== order.status &&
+            !hasRefreshedFromStreamRef.current
+          ) {
+            hasRefreshedFromStreamRef.current = true;
+            router.refresh();
+          }
+        } catch {
+          // no-op
+        }
+      });
+      source.onerror = () => {
+        if (!mounted) return;
+        setTrackingStreamState("fallback");
+      };
+    } catch {
+      setTrackingStreamState("fallback");
+    }
+
+    return () => {
+      mounted = false;
+      if (source) source.close();
+    };
+  }, [order.trackingNumber, order.status, router]);
 
   const availableStatuses = useMemo(() => {
     const currentStatus = order.status;
@@ -127,6 +182,26 @@ export default function OrderDetailsForm({
             <div className="text-sm flex items-center gap-2">
               Current Status: <OrderStatusBadge status={order.status} />
             </div>
+            <p className="text-xs text-muted-foreground">
+              Live tracking channel: {trackingStreamState === "live" ? "connected" : "reconnecting"}
+            </p>
+            {liveTrackingMeta ? (
+              <p className="text-xs text-muted-foreground">
+                Heartbeat:{" "}
+                {liveTrackingMeta.heartbeatAt
+                  ? formatDateTime(new Date(liveTrackingMeta.heartbeatAt)).dateTime
+                  : "N/A"}
+                {liveTrackingMeta.etaDriftMinutes !== undefined
+                  ? ` • ETA drift ${liveTrackingMeta.etaDriftMinutes} min`
+                  : ""}
+                {liveTrackingMeta.routeDeviationM !== undefined
+                  ? ` • Deviation ${liveTrackingMeta.routeDeviationM} m`
+                  : ""}
+                {liveTrackingMeta.alertFlags?.length
+                  ? ` • Alerts: ${liveTrackingMeta.alertFlags.join(", ")}`
+                  : ""}
+              </p>
+            ) : null}
             <p className="text-sm">
               <Link
                 className="underline text-blue-600 hover:text-blue-700"

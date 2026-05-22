@@ -1,7 +1,7 @@
 import { createUploadthing, type FileRouter } from "uploadthing/next";
 import { UploadThingError } from "uploadthing/server";
 import { getServerSession } from "@/lib/get-session";
-import { isAdminRole, isRestaurantRole } from "@/lib/dashboard-access";
+import { isAdminRole, isRestaurantRole, isRiderRole } from "@/lib/dashboard-access";
 
 const f = createUploadthing();
 
@@ -14,6 +14,14 @@ const ensureAuthenticatedUser = async () => {
 const ensureStaffUser = async () => {
   const user = await ensureAuthenticatedUser();
   if (!isAdminRole(user.role) && !isRestaurantRole(user.role)) {
+    throw new UploadThingError("Unauthorized");
+  }
+  return user;
+};
+
+const ensureRiderUser = async () => {
+  const user = await ensureAuthenticatedUser();
+  if (!isRiderRole(user.role)) {
     throw new UploadThingError("Unauthorized");
   }
   return user;
@@ -151,6 +159,19 @@ export const ourFileRouter = {
   })
     .middleware(async () => {
       const user = await ensureAuthenticatedUser();
+      return { userId: user.id };
+    })
+    .onUploadComplete(withSessionMeta),
+
+  // proof of delivery photos
+  riderProofs: f({
+    image: {
+      maxFileSize: "4MB",
+      maxFileCount: 5,
+    },
+  })
+    .middleware(async () => {
+      const user = await ensureRiderUser();
       return { userId: user.id };
     })
     .onUploadComplete(withSessionMeta),

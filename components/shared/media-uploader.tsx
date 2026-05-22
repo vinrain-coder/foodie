@@ -100,7 +100,8 @@ type MediaUploaderProps<TFieldValues extends FieldValues> = {
     | "blogs"
     | "pages"
     | "carousels"
-    | "restaurants";
+    | "restaurants"
+    | "riderProofs";
   multiple?: boolean;
   maxFiles?: number;
 };

@@ -16,7 +16,11 @@ import { ChevronDownIcon } from "lucide-react";
 import Link from "next/link";
 import { SignOutButton } from "../sign-out-button";
 import { authClient } from "@/lib/auth-client";
-import { canAccessAdminDashboard, isRestaurantRole } from "@/lib/dashboard-access";
+import {
+  canAccessAdminDashboard,
+  isRestaurantRole,
+  isRiderRole,
+} from "@/lib/dashboard-access";
 
 export default function UserButton() {
   const [mounted, setMounted] = useState(false);
@@ -45,6 +49,7 @@ export default function UserButton() {
     session?.user?.role,
   );
   const restaurantUser = isRestaurantRole(session?.user?.role);
+  const riderUser = isRiderRole(session?.user?.role);
 
   return (
     <div className="flex items-center">
@@ -166,6 +171,14 @@ export default function UserButton() {
                 <Link href="/affiliate/dashboard" className="w-full">
                   <DropdownMenuItem className="cursor-pointer rounded-md">
                     Affiliate Dashboard
+                  </DropdownMenuItem>
+                </Link>
+              )}
+
+              {riderUser && (
+                <Link href="/rider/jobs" className="w-full">
+                  <DropdownMenuItem className="cursor-pointer rounded-md">
+                    Rider Dashboard
                   </DropdownMenuItem>
                 </Link>
               )}
