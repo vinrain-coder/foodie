@@ -140,7 +140,7 @@ export default function ReviewImageUploader({
             {isUploading ? "Uploading image..." : "Upload review image (max 2)"}
           </span>
           <span className="text-xs text-muted-foreground">
-            PNG, JPG, or WEBP up to 2MB.
+            PNG, JPG, or WEBP up to 4MB.
           </span>
           <input
             type="file"

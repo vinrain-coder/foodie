@@ -3,28 +3,35 @@
 import * as React from "react";
 import {
   IconBike,
+  IconHome2,
   IconUser,
   IconCertificate,
   IconWallet,
-  IconReceipt2,
   IconChecklist,
   IconClipboardList,
   IconSettings,
 } from "@tabler/icons-react";
 
 import { useSidebar } from "@/components/ui/sidebar";
-import { NavDocuments } from "@/app/admin/nav-documents";
-import { NavContent } from "@/app/admin/nav-content";
-import { NavSecondary } from "@/app/admin/nav-secondary";
-import { NavMain } from "@/app/admin/nav-main";
-import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader } from "@/components/ui/sidebar";
-import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarSeparator,
+} from "@/components/ui/sidebar";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 const data = {
-  navMain: [
+  dispatch: [
     {
       title: "Delivery Jobs",
       url: "/rider/jobs",
@@ -36,7 +43,7 @@ const data = {
       icon: IconClipboardList,
     },
   ],
-  operations: [
+  account: [
     {
       title: "Profile",
       url: "/rider/profile",
@@ -47,12 +54,15 @@ const data = {
       url: "/rider/kyc",
       icon: IconCertificate,
     },
-  ],
-  finance: [
     {
       title: "Earnings & Finance",
       url: "/rider/finance",
       icon: IconWallet,
+    },
+    {
+      title: "Settings",
+      url: "/rider/settings",
+      icon: IconSettings,
     },
   ],
 };
@@ -63,48 +73,93 @@ export function RiderSidebar({
   const pathname = usePathname();
   const { isMobile, toggleSidebar } = useSidebar();
 
+  const menuGroups = [
+    { title: "Dispatch", items: data.dispatch },
+    { title: "Account", items: data.account },
+  ];
+
   return (
-    <Sidebar collapsible="icon" {...props}>
+    <Sidebar variant="inset" collapsible="icon" {...props}>
       <SidebarHeader>
+        <div className="rounded-xl border border-sidebar-border/70 bg-sidebar-accent/20 p-2.5">
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                size="lg"
+                className="data-[slot=sidebar-menu-button]:p-0"
+              >
+                <Link href="/rider" className="flex items-center gap-2">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/15 text-primary">
+                    <IconBike className="h-5 w-5" />
+                  </div>
+                  <div className="grid flex-1 text-left text-sm leading-tight">
+                    <span className="truncate font-semibold">Rider Console</span>
+                    <span className="truncate text-xs text-muted-foreground">
+                      Fleet operations
+                    </span>
+                  </div>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </div>
+      </SidebarHeader>
+
+      <SidebarContent>
+        {menuGroups.map((group) => (
+          <SidebarGroup key={group.title}>
+            <SidebarGroupLabel>{group.title}</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {group.items.map((item) => {
+                  const isActive =
+                    pathname === item.url || pathname.startsWith(`${item.url}/`);
+                  return (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton
+                        asChild
+                        tooltip={item.title}
+                        isActive={isActive}
+                        className={cn(
+                          "transition-colors",
+                          isActive &&
+                            "bg-primary/12 text-primary ring-1 ring-primary/25",
+                        )}
+                      >
+                        <Link
+                          href={item.url}
+                          className="flex items-center gap-2"
+                          onClick={() => {
+                            if (isMobile) toggleSidebar();
+                          }}
+                        >
+                          <item.icon className="h-4 w-4" />
+                          <span>{item.title}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ))}
+      </SidebarContent>
+
+      <SidebarSeparator />
+
+      <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton
-              asChild
-              className="data-[slot=sidebar-menu-button]:p-1.5!"
-            >
-              <Link href="/rider/jobs" className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
-                  <IconBike className="h-5 w-5 text-primary" />
-                </div>
-                <span className="text-base font-semibold">Rider</span>
+            <SidebarMenuButton asChild tooltip="Back to marketplace">
+              <Link href="/" className="flex items-center gap-2 text-xs">
+                <IconHome2 className="h-4 w-4" />
+                <span>Back to marketplace</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
-      </SidebarHeader>
-      <SidebarContent>
-        <NavMain
-          items={data.navMain}
-          createUrl="/rider/jobs"
-        />
-        <NavDocuments title="Account" items={data.operations} />
-        {data.finance.length > 0 && (
-          <NavDocuments title="Finance" items={data.finance} />
-        )}
-        <NavSecondary
-          items={[
-            { title: "Settings", url: "/rider/settings", icon: IconSettings },
-          ]}
-          className="mt-auto"
-        />
-      </SidebarContent>
-      <SidebarFooter>
-        <Link
-          href="/"
-          className="text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1"
-        >
-          ← Back to marketplace
-        </Link>
       </SidebarFooter>
     </Sidebar>
   );

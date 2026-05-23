@@ -28,9 +28,9 @@ export const isSafeMediaUrl = (value?: string | null): value is string =>
 export const getUploadthingFileUrl = (file?: UploadthingClientFile | null) => {
   if (!file || typeof file !== "object") return "";
   const candidate =
-    (file as { ufsUrl?: string }).ufsUrl ||
     (file as { url?: string }).url ||
     (file as { appUrl?: string }).appUrl ||
+    (file as { ufsUrl?: string }).ufsUrl ||
     "";
   return sanitizeMediaUrl(candidate);
 };
@@ -40,6 +40,7 @@ export const getMediaTypeFromUrl = (url: string): "image" | "video" =>
 
 export const isUploadthingHost = (hostname: string) =>
   hostname === "utfs.io" ||
+  hostname.endsWith(".utfs.io") ||
   hostname.endsWith(".ufs.sh") ||
   hostname.endsWith(".uploadthing.com") ||
   hostname === "uploadthing.com";

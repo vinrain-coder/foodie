@@ -10,6 +10,7 @@ export interface IRiderProfile extends Document {
   availability: RiderAvailabilityStatus;
   fullName: string;
   phone: string;
+  location: string;
   vehicleType: "bicycle" | "motorbike" | "car" | "van";
   capacity: number;
   plateNumber?: string;
@@ -90,6 +91,7 @@ const riderProfileSchema = new Schema<IRiderProfile>(
       index: true,
     },
     phone: { type: String, trim: true, default: "" },
+    location: { type: String, trim: true, default: "" },
     vehicleType: {
       type: String,
       enum: ["bicycle", "motorbike", "car", "van"],

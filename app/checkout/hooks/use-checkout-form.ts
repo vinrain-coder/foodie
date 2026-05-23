@@ -25,10 +25,6 @@ import {
 } from "@/lib/actions/address.actions";
 import { getUserCoins, getUserWalletBalance } from "@/lib/actions/user.actions";
 import { getMenuItemsByIds } from "@/lib/actions/menu.item.actions";
-import {
-  getAllCounties,
-  getPlacesByCounty,
-} from "@/lib/actions/delivery-location.actions";
 import { normalizeAddressBookEntries } from "@/lib/address-book";
 import {
   calculateFutureMinutes,
@@ -136,14 +132,6 @@ export const useCheckoutForm = (
       "",
   );
 
-  // Delivery Location state
-  const [counties, setCounties] = useState<string[]>([]);
-  const [places, setPlaces] = useState<{ city: string; rate: number }[]>([]);
-  const [countiesError, setCountiesError] = useState<string | null>(null);
-  const [placesError, setPlacesError] = useState<string | null>(null);
-  const [isCountiesLoading, setIsCountiesLoading] = useState(false);
-  const [isPlacesLoading, setIsPlacesLoading] = useState(false);
-
   // First Purchase Discount state
   const [firstPurchaseDiscount, setFirstPurchaseDiscount] = useState<{
     eligible: boolean;
@@ -183,9 +171,6 @@ export const useCheckoutForm = (
       email: "",
     },
   });
-
-  const selectedCounty = shippingAddressForm.watch("province");
-  const selectedPlace = shippingAddressForm.watch("city");
 
   // Sync address book from session
   useEffect(() => {
@@ -262,52 +247,6 @@ export const useCheckoutForm = (
     };
     fetchMenuItems();
   }, [items]);
-
-  // Fetch counties
-  useEffect(() => {
-    setIsCountiesLoading(true);
-    getAllCounties()
-      .then((data) => {
-        setCounties(data);
-        setCountiesError(null);
-      })
-      .catch((error) => {
-        console.error("Failed to fetch counties:", error);
-        setCounties([]);
-        setCountiesError("Failed to load counties. Please try again.");
-      })
-      .finally(() => {
-        setIsCountiesLoading(false);
-      });
-  }, []);
-
-  // Fetch places when county changes
-  useEffect(() => {
-    if (selectedCounty) {
-      setIsPlacesLoading(true);
-      getPlacesByCounty(selectedCounty)
-        .then((data) => {
-          setPlaces(data);
-          setPlacesError(null);
-        })
-        .catch((error) => {
-          console.error(
-            "Failed to fetch places for county:",
-            selectedCounty,
-            error,
-          );
-          setPlaces([]);
-          setPlacesError("Failed to load delivery places. Please try again.");
-        })
-        .finally(() => {
-          setIsPlacesLoading(false);
-        });
-    } else {
-      setPlaces([]);
-      setPlacesError(null);
-      setIsPlacesLoading(false);
-    }
-  }, [selectedCounty]);
 
   // Fetch user coins & wallet
   useEffect(() => {
@@ -495,15 +434,6 @@ export const useCheckoutForm = (
   ) => {
     try {
       setIsSubmittingAddress(true);
-      if (!values.province) {
-        toast.error("Please select a valid county.");
-        return;
-      }
-      if (!values.city) {
-        toast.error("Please select a valid delivery place.");
-        return;
-      }
-
       await setShippingAddress(values, discount || 0);
 
       if (saveAddressToAccount && session) {
@@ -866,17 +796,9 @@ export const useCheckoutForm = (
     isSubscribing,
     addressBook,
     selectedSavedAddressId,
-    counties,
-    places,
-    isCountiesLoading,
-    isPlacesLoading,
-    countiesError,
-    placesError,
     firstPurchaseDiscount,
     effectiveDiscountAmount,
     shippingAddressForm,
-    selectedCounty,
-    selectedPlace,
     isAddressSelected,
     isPaymentMethodSelected,
     canPlaceOrder,

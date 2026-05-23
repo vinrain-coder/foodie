@@ -80,11 +80,6 @@ const data = {
       icon: IconMapPin,
     },
     {
-      title: "Delivery Locations",
-      url: "/admin/delivery-locations",
-      icon: IconMapPin,
-    },
-    {
       title: "Riders",
       url: "/admin/riders",
       icon: IconUser,

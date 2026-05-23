@@ -1,7 +1,7 @@
 "use client";
 
-import { Field, FieldLabel, FieldError, FieldDescription } from "@/components/ui/field";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { Field, FieldLabel, FieldError } from "@/components/ui/field";
+import { useMemo, useState, useTransition } from "react";
 import { useForm, Controller, FormProvider } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
@@ -23,13 +23,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { FormError } from "@/components/shared/form-error";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   CheckCircle2,
   Loader2,
   MapPin,
@@ -39,10 +32,6 @@ import {
   Star,
   Trash2,
 } from "lucide-react";
-import {
-  getAllCounties,
-  getPlacesByCounty,
-} from "@/lib/actions/delivery-location.actions";
 import { cn } from "@/lib/utils";
 
 type AddressBookFormInput = z.input<typeof AddressBookInputSchema>;
@@ -58,28 +47,6 @@ const emptyAddress: AddressBookFormInput = {
   country: "Kenya",
   phone: "",
   saveAsDefault: false,
-};
-
-const fieldLabels: Record<
-  "fullName" | "street" | "postalCode" | "country" | "phone",
-  string
-> = {
-  fullName: "Full name",
-  street: "Street address",
-  postalCode: "Postal code",
-  country: "Country",
-  phone: "Phone number",
-};
-
-const fieldPlaceholders: Record<
-  "fullName" | "street" | "postalCode" | "country" | "phone",
-  string
-> = {
-  fullName: "e.g. Jane Wanjiku",
-  street: "e.g. TRM Drive, House 13",
-  postalCode: "e.g. 00100",
-  country: "Kenya",
-  phone: "e.g. 0712345678",
 };
 
 export default function AddressBook({
@@ -100,17 +67,11 @@ export default function AddressBook({
     string | null
   >(null);
 
-  const [counties, setCounties] = useState<string[]>([]);
-  const [places, setPlaces] = useState<{ city: string; rate: number }[]>([]);
-  const [isCountiesLoading, setIsCountiesLoading] = useState(false);
-  const [isPlacesLoading, setIsPlacesLoading] = useState(false);
-
   const form = useForm<AddressBookFormInput, unknown, AddressBookFormOutput>({
     resolver: zodResolver(AddressBookInputSchema),
     defaultValues: emptyAddress,
   });
 
-  const selectedCounty = form.watch("province");
   const orderedAddresses = useMemo(
     () =>
       [...addresses].sort((a, b) => {
@@ -124,33 +85,6 @@ export default function AddressBook({
     [addresses],
   );
   const isCheckoutMode = Boolean(returnTo);
-
-  useEffect(() => {
-    setIsCountiesLoading(true);
-    getAllCounties()
-      .then(setCounties)
-      .catch(() => {
-        setCounties([]);
-        toast.error("Unable to load counties right now.");
-      })
-      .finally(() => setIsCountiesLoading(false));
-  }, []);
-
-  useEffect(() => {
-    if (!selectedCounty) {
-      setPlaces([]);
-      return;
-    }
-
-    setIsPlacesLoading(true);
-    getPlacesByCounty(selectedCounty)
-      .then((rows) => setPlaces(rows))
-      .catch(() => {
-        setPlaces([]);
-        toast.error("Unable to load delivery places for the selected county.");
-      })
-      .finally(() => setIsPlacesLoading(false));
-  }, [selectedCounty]);
 
   const editingAddress = useMemo(
     () => addresses.find((item) => item.id === editingAddressId),
@@ -485,32 +419,11 @@ export default function AddressBook({
                   render={({ field, fieldState }) => (
                     <Field data-invalid={fieldState.invalid}>
                       <FieldLabel>County</FieldLabel>
-                      <Select
-                        value={field.value}
-                        onValueChange={(value) => {
-                          field.onChange(value);
-                          form.setValue("city", "");
-                        }}
-                      >
-                        
-                          <SelectTrigger aria-invalid={fieldState.invalid}>
-                            <SelectValue
-                              placeholder={
-                                isCountiesLoading
-                                  ? "Loading counties..."
-                                  : "Select county"
-                              }
-                            />
-                          </SelectTrigger>
-                        
-                        <SelectContent>
-                          {counties.map((county) => (
-                            <SelectItem key={county} value={county}>
-                              {county}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <Input
+                        placeholder="e.g. Nairobi"
+                        aria-invalid={fieldState.invalid}
+                        {...field}
+                      />
                       <FieldError  errors={[fieldState.error]} />
                     </Field>
                   )}
@@ -521,41 +434,12 @@ export default function AddressBook({
                   name="city"
                   render={({ field, fieldState }) => (
                     <Field data-invalid={fieldState.invalid}>
-                      <FieldLabel>Delivery place</FieldLabel>
-                      <Select
-                        value={field.value}
-                        onValueChange={field.onChange}
-                        disabled={!selectedCounty || isPlacesLoading}
-                      >
-                        
-                          <SelectTrigger aria-invalid={fieldState.invalid}>
-                            <SelectValue
-                              placeholder={
-                                !selectedCounty
-                                  ? "Select county first"
-                                  : isPlacesLoading
-                                    ? "Loading places..."
-                                    : "Select delivery place"
-                              }
-                            />
-                          </SelectTrigger>
-                        
-                        <SelectContent>
-                          {places.map((place) => (
-                            <SelectItem key={place.city} value={place.city}>
-                              {place.city}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-
-                      {selectedCounty &&
-                        !isPlacesLoading &&
-                        places.length === 0 && (
-                          <FieldDescription className="text-xs">
-                            No delivery places found for this county yet.
-                          </FieldDescription>
-                        )}
+                      <FieldLabel>City</FieldLabel>
+                      <Input
+                        placeholder="e.g. Kasarani"
+                        aria-invalid={fieldState.invalid}
+                        {...field}
+                      />
 
                       <FieldError  errors={[fieldState.error]} />
                     </Field>

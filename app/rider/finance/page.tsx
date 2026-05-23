@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { getServerSession } from "@/lib/get-session";
-import { redirect, notFound } from "next/navigation";
+import { redirect } from "next/navigation";
 import { PRIVATE_ROBOTS } from "@/lib/seo";
-import { isRiderRole, canAccessRiderDashboard } from "@/lib/dashboard-access";
+import { canStartRiderOnboarding } from "@/lib/dashboard-access";
 import Link from "next/link";
 import { ArrowRight, Bike, Clock, TrendingUp, Wallet } from "lucide-react";
 import Breadcrumb from "@/components/shared/breadcrumb";
@@ -17,9 +17,7 @@ export const metadata: Metadata = {
 export default async function RiderFinancePage() {
   const session = await getServerSession();
   if (!session?.user) redirect("/rider");
-  if (!canAccessRiderDashboard(session.user.role))
-    redirect("/forbidden");
-  if (!isRiderRole(session.user.role)) redirect("/forbidden");
+  if (!canStartRiderOnboarding(session.user.role)) redirect("/forbidden");
 
   return (
     <div className="space-y-6">

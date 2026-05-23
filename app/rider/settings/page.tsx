@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { getServerSession } from "@/lib/get-session";
-import { redirect, notFound } from "next/navigation";
+import { redirect } from "next/navigation";
 import { PRIVATE_ROBOTS } from "@/lib/seo";
-import { isRiderRole, canAccessRiderDashboard } from "@/lib/dashboard-access";
+import { canStartRiderOnboarding } from "@/lib/dashboard-access";
 import Breadcrumb from "@/components/shared/breadcrumb";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -18,9 +18,7 @@ export const metadata: Metadata = {
 export default async function RiderSettingsPage() {
   const session = await getServerSession();
   if (!session?.user) redirect("/rider");
-  if (!canAccessRiderDashboard(session.user.role))
-    redirect("/forbidden");
-  if (!isRiderRole(session.user.role)) redirect("/forbidden");
+  if (!canStartRiderOnboarding(session.user.role)) redirect("/forbidden");
 
   return (
     <div className="space-y-6">

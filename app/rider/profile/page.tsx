@@ -105,6 +105,8 @@ export default function RiderProfilePage() {
         status: string;
         availability: string;
         isKycVerified: boolean;
+        kycRejectedReason: string;
+        kycVerifiedAt?: string;
         completedJobs: number;
         rating: number;
         acceptanceRate: number;
@@ -143,6 +145,8 @@ export default function RiderProfilePage() {
             status: d.status || "pending_kyc",
             availability: d.availability || "offline",
             isKycVerified: d.isKycVerified || false,
+            kycRejectedReason: d.kycRejectedReason || "",
+            kycVerifiedAt: d.kycVerifiedAt || "",
             completedJobs: d.completedJobs || 0,
             rating: d.rating || 5,
             acceptanceRate: d.acceptanceRate || 0,
@@ -274,6 +278,32 @@ export default function RiderProfilePage() {
               details while waiting.
             </div>
           )}
+
+          {p?.status === "pending_kyc" && p?.kycRejectedReason ? (
+            <div className="rounded-md border border-red-300 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+              <p className="font-semibold">Previous submission needs correction</p>
+              <p className="mt-1">{p.kycRejectedReason}</p>
+              <p className="mt-2">
+                Update your details and documents from{" "}
+                <Link href="/rider-signup" className="underline underline-offset-4">
+                  rider signup
+                </Link>{" "}
+                and resubmit.
+              </p>
+            </div>
+          ) : null}
+
+          {p?.status === "active" ? (
+            <div className="rounded-md border border-emerald-300 bg-emerald-50 p-4 text-sm text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300">
+              <p className="font-semibold">Rider account approved</p>
+              <p className="mt-1">
+                Your KYC has been approved and your account is active.
+                {p.kycVerifiedAt
+                  ? ` Verified on ${new Date(p.kycVerifiedAt).toLocaleString()}.`
+                  : ""}
+              </p>
+            </div>
+          ) : null}
         </CardContent>
       </Card>
 

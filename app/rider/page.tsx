@@ -3,7 +3,7 @@ import { getServerSession } from "@/lib/get-session";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { PRIVATE_ROBOTS } from "@/lib/seo";
-import { isRiderRole } from "@/lib/dashboard-access";
+import { canStartRiderOnboarding } from "@/lib/dashboard-access";
 import { getRiderProfile, getRiderRegistrationStatus } from "@/lib/actions/rider-profile.actions";
 import {
   Card,
@@ -56,7 +56,7 @@ export default async function RiderDashboardPage() {
   if (!session?.user) {
     redirect("/rider/jobs");
   }
-  if (!isRiderRole(session.user.role)) {
+  if (!canStartRiderOnboarding(session.user.role)) {
     redirect("/forbidden");
   }
 

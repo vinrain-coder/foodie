@@ -1,7 +1,11 @@
 import { createUploadthing, type FileRouter } from "uploadthing/next";
 import { UploadThingError } from "uploadthing/server";
 import { getServerSession } from "@/lib/get-session";
-import { isAdminRole, isRestaurantRole, isRiderRole } from "@/lib/dashboard-access";
+import {
+  canStartRiderOnboarding,
+  isAdminRole,
+  isRestaurantRole,
+} from "@/lib/dashboard-access";
 
 const f = createUploadthing();
 
@@ -21,7 +25,7 @@ const ensureStaffUser = async () => {
 
 const ensureRiderUser = async () => {
   const user = await ensureAuthenticatedUser();
-  if (!isRiderRole(user.role)) {
+  if (!canStartRiderOnboarding(user.role)) {
     throw new UploadThingError("Unauthorized");
   }
   return user;

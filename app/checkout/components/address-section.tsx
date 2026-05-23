@@ -8,13 +8,6 @@ import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toSignInPath } from "@/lib/redirects";
 import { AddressBookEntry, ShippingAddress } from "@/types";
@@ -37,13 +30,6 @@ interface AddressSectionProps {
   acceptMarketingEmails: boolean;
   setAcceptMarketingEmails: (accept: boolean) => void;
   isSubscribing: boolean;
-  counties: string[];
-  isCountiesLoading: boolean;
-  countiesError: string | null;
-  places: { city: string; rate: number }[];
-  isPlacesLoading: boolean;
-  placesError: string | null;
-  selectedCounty: string;
   isSubmittingAddress: boolean;
   handleSelectShippingAddress: (e?: React.BaseSyntheticEvent) => void;
 }
@@ -63,13 +49,6 @@ export const AddressSection = ({
   acceptMarketingEmails,
   setAcceptMarketingEmails,
   isSubscribing,
-  counties,
-  isCountiesLoading,
-  countiesError,
-  places,
-  isPlacesLoading,
-  placesError,
-  selectedCounty,
   isSubmittingAddress,
   handleSelectShippingAddress,
 }: AddressSectionProps) => {
@@ -395,36 +374,11 @@ export const AddressSection = ({
                     <Field className="w-full" data-invalid={fieldState.invalid}>
                       <FieldLabel>County</FieldLabel>
 
-                      <Select
-                        value={field.value}
-                        onValueChange={(val) => {
-                          field.onChange(val);
-                          shippingAddressForm.setValue("city", "");
-                        }}
-                      >
-                        <SelectTrigger aria-invalid={fieldState.invalid}>
-                          <SelectValue
-                            placeholder={
-                              isCountiesLoading
-                                ? "Loading counties..."
-                                : "Select county"
-                            }
-                          />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {counties.map((c) => (
-                            <SelectItem key={c} value={c}>
-                              {c}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-
-                      {countiesError && (
-                        <p className="text-xs text-destructive mt-1">
-                          {countiesError}
-                        </p>
-                      )}
+                      <Input
+                        placeholder="Enter county"
+                        aria-invalid={fieldState.invalid}
+                        {...field}
+                      />
                       <FieldError errors={[fieldState.error]} />
                     </Field>
                   )}
@@ -434,50 +388,13 @@ export const AddressSection = ({
                   name="city"
                   render={({ field, fieldState }) => (
                     <Field className="w-full" data-invalid={fieldState.invalid}>
-                      <FieldLabel>Delivery area</FieldLabel>
+                      <FieldLabel>City</FieldLabel>
 
-                      <Select
-                        value={field.value}
-                        onValueChange={field.onChange}
-                        disabled={
-                          !selectedCounty ||
-                          places.length === 0 ||
-                          isPlacesLoading
-                        }
-                      >
-                        <SelectTrigger aria-invalid={fieldState.invalid}>
-                          <SelectValue
-                            placeholder={
-                              isPlacesLoading
-                                ? "Loading places..."
-                                : "Select delivery place"
-                            }
-                          />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {places.map((p) => (
-                            <SelectItem key={p.city} value={p.city}>
-                              {p.city}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-
-                      {!selectedCounty && (
-                        <p className="text-xs text-muted-foreground">
-                          Select a county first to load delivery places.
-                        </p>
-                      )}
-                      {selectedCounty && isPlacesLoading && (
-                        <p className="text-xs text-muted-foreground">
-                          Loading delivery places...
-                        </p>
-                      )}
-                      {placesError && (
-                        <p className="text-xs text-destructive mt-1">
-                          {placesError}
-                        </p>
-                      )}
+                      <Input
+                        placeholder="Enter city"
+                        aria-invalid={fieldState.invalid}
+                        {...field}
+                      />
                       <FieldError errors={[fieldState.error]} />
                     </Field>
                   )}

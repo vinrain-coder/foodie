@@ -3,22 +3,16 @@ import { getServerSession } from "@/lib/get-session";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { PRIVATE_ROBOTS } from "@/lib/seo";
-import {
-  isAdminRole,
-} from "@/lib/dashboard-access";
+import { isAdminRole } from "@/lib/dashboard-access";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import {
   CheckCircle2,
   Clock3,
   AlertCircle,
   ArrowLeft,
   Bike,
-  MapPin,
-  Phone,
   User as UserIcon,
   FileText,
 } from "lucide-react";
@@ -34,10 +28,11 @@ import { connectToDatabase } from "@/lib/db";
 import RiderProfile from "@/lib/db/models/rider-profile.model";
 import User from "@/lib/db/models/user.model";
 import DeliveryJob from "@/lib/db/models/delivery-job.model";
+import RiderAuditLog from "@/lib/db/models/rider-audit-log.model";
 import { formatDateTime } from "@/lib/utils";
 import Image from "next/image";
-import { approveRiderByAdmin } from "@/lib/actions/rider-profile.actions";
 import Breadcrumb from "@/components/shared/breadcrumb";
+import RiderReviewActions from "./rider-review-actions";
 
 export const metadata: Metadata = {
   title: "Rider Details",
@@ -47,14 +42,14 @@ export const metadata: Metadata = {
 export default async function AdminRiderDetailPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
   const session = await getServerSession();
   if (!session?.user || !isAdminRole(session.user.role)) {
     redirect("/forbidden");
   }
 
-  const { id } = params;
+  const { id } = await params;
 
   if (!id.match(/^[0-9a-fA-F]{24}$/)) {
     notFound();
@@ -62,16 +57,20 @@ export default async function AdminRiderDetailPage({
 
   await connectToDatabase();
 
-  const [profile, user] = await Promise.all([
-    RiderProfile.findById(id).lean(),
-    User.findById(id).select("name email createdAt").lean(),
-  ]);
+  const profile = await RiderProfile.findOne({
+    $or: [{ _id: id }, { user: id }],
+  }).lean();
 
   if (!profile) {
     notFound();
   }
 
   const p = profile as any;
+  const riderUserId = p.user?.toString?.() || id;
+
+  const user = await User.findById(riderUserId)
+    .select("name email createdAt")
+    .lean();
   const u = user as any;
 
   const statusBadge = (() => {
@@ -99,10 +98,21 @@ export default async function AdminRiderDetailPage({
     };
   })();
 
-  const recentJobs = await DeliveryJob.find({ rider: p.user || id })
+  const recentJobs = await DeliveryJob.find({ rider: riderUserId })
     .sort({ createdAt: -1 })
     .limit(10)
     .populate("order", "trackingNumber status expectedDeliveryDate")
+    .lean();
+  const activeJobCount = await DeliveryJob.countDocuments({
+    rider: riderUserId,
+    state: { $in: ["accepted", "picked_up"] },
+  });
+  const riderAuditLogs = await RiderAuditLog.find({ rider: riderUserId })
+    .sort({ createdAt: -1 })
+    .limit(30)
+    .populate("actorId", "name email")
+    .populate("order", "trackingNumber")
+    .populate("deliveryJob", "state")
     .lean();
 
   return (
@@ -118,7 +128,6 @@ export default async function AdminRiderDetailPage({
         </Link>
       </div>
 
-      {/* Profile Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-start gap-4">
           <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-primary/10">
@@ -130,22 +139,18 @@ export default async function AdminRiderDetailPage({
             </h1>
             <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
               <span>{u?.email || "-"}</span>
-              <span>·</span>
+              <span>|</span>
               <span>{p.phone || "-"}</span>
             </div>
           </div>
         </div>
-        <Badge
-          variant="outline"
-          className={`w-fit ${statusBadge.classes}`}
-        >
+        <Badge variant="outline" className={`w-fit ${statusBadge.classes}`}>
           <statusBadge.icon className="mr-1 h-3.5 w-3.5" />
           {statusBadge.label}
         </Badge>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {/* Personal & Contact */}
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -178,7 +183,6 @@ export default async function AdminRiderDetailPage({
           </CardContent>
         </Card>
 
-        {/* Vehicle */}
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -209,7 +213,6 @@ export default async function AdminRiderDetailPage({
           </CardContent>
         </Card>
 
-        {/* Performance */}
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -227,15 +230,11 @@ export default async function AdminRiderDetailPage({
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Rating</span>
-              <span className="font-medium">
-                {Number(p.rating || 0).toFixed(1)} / 5.0
-              </span>
+              <span className="font-medium">{Number(p.rating || 0).toFixed(1)} / 5.0</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Acceptance Rate</span>
-              <span className="font-medium">
-                {Number(p.acceptanceRate || 0).toFixed(1)}%
-              </span>
+              <span className="font-medium">{Number(p.acceptanceRate || 0).toFixed(1)}%</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Availability</span>
@@ -245,7 +244,6 @@ export default async function AdminRiderDetailPage({
         </Card>
       </div>
 
-      {/* KYC Documents */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
@@ -254,20 +252,13 @@ export default async function AdminRiderDetailPage({
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {/* Identity Document */}
             <div className="space-y-2">
               <p className="text-sm font-medium">
                 Identity Document <span className="text-xs">({p.identityVerification?.status || "missing"})</span>
               </p>
               {p.identityDocumentUrl ? (
                 <div className="relative h-40 w-full overflow-hidden rounded-lg border bg-muted/50">
-                  <Image
-                    src={p.identityDocumentUrl}
-                    alt="Identity document"
-                    fill
-                    unoptimized
-                    className="object-contain"
-                  />
+                  <Image src={p.identityDocumentUrl} alt="Identity document" fill unoptimized className="object-contain" />
                 </div>
               ) : (
                 <div className="flex h-40 w-full items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">
@@ -276,32 +267,18 @@ export default async function AdminRiderDetailPage({
               )}
               {p.selfieUrl ? (
                 <div className="relative h-32 w-full overflow-hidden rounded-lg border bg-muted/50">
-                  <Image
-                    src={p.selfieUrl}
-                    alt="Selfie"
-                    fill
-                    unoptimized
-                    className="object-cover"
-                  />
+                  <Image src={p.selfieUrl} alt="Selfie" fill unoptimized className="object-cover" />
                 </div>
               ) : null}
             </div>
 
-            {/* Vehicle Documents */}
             <div className="space-y-2">
               <p className="text-sm font-medium">
-                Vehicle License{" "}
-                <span className="text-xs">({p.vehicleDocuments?.status || "missing"})</span>
+                Vehicle License <span className="text-xs">({p.vehicleDocuments?.status || "missing"})</span>
               </p>
               {p.vehicleLicenseUrl ? (
                 <div className="relative h-40 w-full overflow-hidden rounded-lg border bg-muted/50">
-                  <Image
-                    src={p.vehicleLicenseUrl}
-                    alt="Vehicle license"
-                    fill
-                    unoptimized
-                    className="object-contain"
-                  />
+                  <Image src={p.vehicleLicenseUrl} alt="Vehicle license" fill unoptimized className="object-contain" />
                 </div>
               ) : (
                 <div className="flex h-40 w-full items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">
@@ -310,18 +287,11 @@ export default async function AdminRiderDetailPage({
               )}
             </div>
 
-            {/* Vehicle Photo */}
             <div className="space-y-2">
               <p className="text-sm font-medium">Vehicle Photo</p>
               {p.vehiclePhotoUrl ? (
                 <div className="relative h-40 w-full overflow-hidden rounded-lg border bg-muted/50">
-                  <Image
-                    src={p.vehiclePhotoUrl}
-                    alt="Vehicle photo"
-                    fill
-                    unoptimized
-                    className="object-contain"
-                  />
+                  <Image src={p.vehiclePhotoUrl} alt="Vehicle photo" fill unoptimized className="object-contain" />
                 </div>
               ) : (
                 <div className="flex h-40 w-full items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">
@@ -346,7 +316,6 @@ export default async function AdminRiderDetailPage({
         </CardContent>
       </Card>
 
-      {/* Recent Jobs */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Recent Delivery Jobs</CardTitle>
@@ -368,9 +337,7 @@ export default async function AdminRiderDetailPage({
               <TableBody>
                 {recentJobs.map((job: any) => (
                   <TableRow key={job._id.toString()}>
-                    <TableCell className="font-mono text-xs">
-                      {job.order?.trackingNumber || "-"}
-                    </TableCell>
+                    <TableCell className="font-mono text-xs">{job.order?.trackingNumber || "-"}</TableCell>
                     <TableCell className="capitalize">{job.state}</TableCell>
                     <TableCell>
                       {job.order?.expectedDeliveryDate
@@ -385,58 +352,81 @@ export default async function AdminRiderDetailPage({
         </CardContent>
       </Card>
 
-      {/* Admin Action */}
-      {!p.isKycVerified && p.status !== "suspended" && (
-        <form
-          action={async (formData) => {
-            "use server";
-            const approve = formData.get("action") === "approve";
-            const reason = String(formData.get("reason") || "");
-            await approveRiderByAdmin({
-              riderUserId: p.user?.toString() || id,
-              approved: approve,
-              rejectionReason: reason,
-            });
-          }}
-          className="space-y-4"
-        >
-          <Card className="border-primary/30">
-            <CardHeader>
-              <CardTitle className="text-base">Admin Action</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Textarea
-                name="reason"
-                placeholder={
-                  "Required if rejecting — explain what needs to be corrected or reason for rejection"
-                }
-                rows={3}
-              />
-              <div className="flex gap-2">
-                <Button
-                  type="submit"
-                  name="action"
-                  value="approve"
-                  className="inline-flex gap-2 bg-emerald-600 text-white hover:bg-emerald-700"
-                >
-                  <CheckCircle2 className="h-4 w-4" />
-                  Approve & Activate
-                </Button>
-                <Button
-                  type="submit"
-                  name="action"
-                  value="reject"
-                  variant="destructive"
-                  className="inline-flex gap-2"
-                >
-                  <AlertCircle className="h-4 w-4" />
-                  Reject
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </form>
-      )}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Audit Timeline</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {riderAuditLogs.length === 0 ? (
+            <p className="py-4 text-sm text-muted-foreground">
+              No audit activity recorded yet.
+            </p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Time</TableHead>
+                  <TableHead>Actor</TableHead>
+                  <TableHead>Action</TableHead>
+                  <TableHead>Transition</TableHead>
+                  <TableHead>Reason</TableHead>
+                  <TableHead>Refs</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {riderAuditLogs.map((entry: any) => {
+                  const actorLabel =
+                    entry.actorType === "admin"
+                      ? (entry.actorId?.name || entry.actorId?.email || "Admin")
+                      : entry.actorType === "rider"
+                        ? "Rider"
+                        : "System";
+                  const transition =
+                    entry.fromStatus || entry.toStatus
+                      ? `${entry.fromStatus || "-"} -> ${entry.toStatus || "-"}`
+                      : "-";
+                  const refs = [
+                    entry.order?.trackingNumber
+                      ? `Order ${entry.order.trackingNumber}`
+                      : "",
+                    entry.deliveryJob?._id
+                      ? `Job ${entry.deliveryJob._id.toString().slice(-6)}`
+                      : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" | ");
+
+                  return (
+                    <TableRow key={entry._id.toString()}>
+                      <TableCell className="whitespace-nowrap text-xs">
+                        {formatDateTime(entry.createdAt).dateTime}
+                      </TableCell>
+                      <TableCell>{actorLabel}</TableCell>
+                      <TableCell className="capitalize">
+                        {(entry.action || "").replaceAll("_", " ")}
+                      </TableCell>
+                      <TableCell className="text-xs">{transition}</TableCell>
+                      <TableCell className="max-w-[320px] truncate">
+                        {entry.reason || "-"}
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {refs || "-"}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      <RiderReviewActions
+        riderUserId={riderUserId}
+        riderStatus={p.status}
+        isKycVerified={Boolean(p.isKycVerified)}
+        activeJobCount={Number(activeJobCount || 0)}
+      />
     </div>
   );
 }

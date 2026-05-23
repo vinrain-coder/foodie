@@ -27,7 +27,12 @@ type MediaType = "image" | "video";
 type MediaItem = { url: string; type: MediaType };
 
 const MAX_UPLOAD_SIZE_BYTES = 4 * 1024 * 1024;
-const ACCEPTED_TYPES = {
+
+const IMAGE_ONLY_ACCEPT = {
+  "image/*": [],
+} as const;
+
+const IMAGE_AND_VIDEO_ACCEPT = {
   "image/*": [],
   "video/*": [],
 } as const;
@@ -40,6 +45,7 @@ function MediaPreview({
   onRemove: () => void;
 }) {
   const [broken, setBroken] = useState(false);
+  const [useDirectImage, setUseDirectImage] = useState(false);
 
   if (!isSafeMediaUrl(item.url) || broken) {
     return (
@@ -52,14 +58,26 @@ function MediaPreview({
   return (
     <div className="relative shrink-0">
       {item.type === "image" ? (
-        <Image
-          src={item.url}
-          alt="Uploaded media preview"
-          width={120}
-          height={120}
-          className="h-28 w-28 rounded-lg border object-cover"
-          onError={() => setBroken(true)}
-        />
+        useDirectImage ? (
+          // Fallback for hosts/URLs where next/image optimization fails.
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={item.url}
+            alt="Uploaded media preview"
+            className="h-28 w-28 rounded-lg border object-cover"
+            loading="lazy"
+            onError={() => setBroken(true)}
+          />
+        ) : (
+          <Image
+            src={item.url}
+            alt="Uploaded media preview"
+            width={120}
+            height={120}
+            className="h-28 w-28 rounded-lg border object-cover"
+            onError={() => setUseDirectImage(true)}
+          />
+        )
       ) : (
         <div className="relative h-28 w-28 overflow-hidden rounded-lg border bg-black/10">
           <video
@@ -97,6 +115,8 @@ type MediaUploaderProps<TFieldValues extends FieldValues> = {
     | "menuItems"
     | "categories"
     | "tags"
+    | "logos"
+    | "reviews"
     | "blogs"
     | "pages"
     | "carousels"
@@ -116,6 +136,10 @@ export default function MediaUploader<TFieldValues extends FieldValues>({
 }: MediaUploaderProps<TFieldValues>) {
   const [media, setMedia] = useState<MediaItem[]>([]);
   const [progress, setProgress] = useState(0);
+  const [pasteEnabled, setPasteEnabled] = useState(false);
+
+  const acceptsVideo = uploadRoute === "menuItems";
+  const acceptedTypes = acceptsVideo ? IMAGE_AND_VIDEO_ACCEPT : IMAGE_ONLY_ACCEPT;
 
   const value = form.watch(name) as unknown;
 
@@ -175,7 +199,7 @@ export default function MediaUploader<TFieldValues extends FieldValues>({
     multiple,
     maxFiles,
     maxSize: MAX_UPLOAD_SIZE_BYTES,
-    accept: ACCEPTED_TYPES,
+    accept: acceptedTypes,
     disabled: isUploading,
     onDrop: async (acceptedFiles) => {
       if (!acceptedFiles.length) return;
@@ -188,6 +212,14 @@ export default function MediaUploader<TFieldValues extends FieldValues>({
       const firstError = rejections[0]?.errors[0];
       if (firstError?.code === "file-too-large") {
         toast.error("File is too large. Max size is 4MB.");
+        return;
+      }
+      if (firstError?.code === "file-invalid-type") {
+        toast.error(
+          acceptsVideo
+            ? "Invalid file type. Use an image or video file."
+            : "Invalid file type. Use an image file.",
+        );
         return;
       }
       toast.error(firstError?.message || "Some files were rejected.");
@@ -217,6 +249,8 @@ export default function MediaUploader<TFieldValues extends FieldValues>({
     if (isUploading) return;
 
     const handlePaste = (event: ClipboardEvent) => {
+      if (!pasteEnabled) return;
+
       const items = Array.from(event.clipboardData?.items || []);
       const files: File[] = [];
 
@@ -243,7 +277,7 @@ export default function MediaUploader<TFieldValues extends FieldValues>({
 
     window.addEventListener("paste", handlePaste);
     return () => window.removeEventListener("paste", handlePaste);
-  }, [isUploading, startUpload]);
+  }, [isUploading, pasteEnabled, startUpload]);
 
   return (
     <Controller
@@ -268,7 +302,13 @@ export default function MediaUploader<TFieldValues extends FieldValues>({
               ) : null}
 
               <div
-                {...getRootProps()}
+                {...getRootProps({
+                  tabIndex: 0,
+                  onFocus: () => setPasteEnabled(true),
+                  onBlur: () => setPasteEnabled(false),
+                  onMouseEnter: () => setPasteEnabled(true),
+                  onMouseLeave: () => setPasteEnabled(false),
+                })}
                 className={`rounded-xl border-2 border-dashed p-6 text-center transition ${
                   isUploading
                     ? "cursor-not-allowed opacity-70"
@@ -284,7 +324,8 @@ export default function MediaUploader<TFieldValues extends FieldValues>({
                   Drag and drop, click to upload, or paste image (Ctrl+V)
                 </p>
                 <p className="mt-1 text-[11px] text-muted-foreground">
-                  Supported: images/videos up to 4MB
+                  Supported:{" "}
+                  {acceptsVideo ? "images/videos" : "images"} up to 4MB
                 </p>
               </div>
 

@@ -60,3 +60,14 @@ export function canAccessRiderDashboard(
 ): role is Extract<UserRole, "ADMIN" | "RIDER"> {
   return isRiderRole(role) || isAdminRole(role);
 }
+
+export function canStartRiderOnboarding(
+  role?: string | null,
+): role is Extract<UserRole, "ADMIN" | "RIDER" | "USER"> {
+  const tokens = parseRoleTokens(role);
+  return (
+    tokens.includes("USER") ||
+    tokens.includes("RIDER") ||
+    tokens.includes("ADMIN")
+  );
+}

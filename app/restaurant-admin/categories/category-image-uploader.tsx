@@ -119,11 +119,24 @@ export default function CategoryImageUploader({ form }: ImageUploaderProps) {
     maxSize: 4 * 1024 * 1024,
     accept: {
       "image/*": [],
-      "video/*": [],
     },
+    disabled: isUploading,
     onDrop: async (files) => {
+      if (!files.length) return;
       const result = await startUpload(files);
       if (!result) toast.error("Upload did not start. Please retry.");
+    },
+    onDropRejected: (rejections) => {
+      const firstError = rejections[0]?.errors[0];
+      if (firstError?.code === "file-too-large") {
+        toast.error("File is too large. Max size is 4MB.");
+        return;
+      }
+      if (firstError?.code === "file-invalid-type") {
+        toast.error("Invalid file type. Use an image file.");
+        return;
+      }
+      toast.error(firstError?.message || "Some files were rejected.");
     },
   });
 
@@ -181,10 +194,10 @@ export default function CategoryImageUploader({ form }: ImageUploaderProps) {
               >
                 <input {...getInputProps()} />
                 <p className="text-sm text-muted-foreground">
-                  Drag & drop images or videos, or click to upload
+                  Drag & drop an image, or click to upload
                 </p>
                 <p className="text-xs mt-1 text-muted-foreground">
-                  Supports multiple files
+                  Supports image files up to 4MB
                 </p>
               </div>
 

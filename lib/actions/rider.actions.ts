@@ -47,7 +47,7 @@ import {
 } from "../email/transactional";
 import { recordRiderCompletedJobEarning } from "../workers/rider-finance.worker";
 import { getSetting } from "./setting.actions";
-import { isAdminRole, isRiderRole } from "../dashboard-access";
+import { canStartRiderOnboarding, isAdminRole, isRiderRole } from "../dashboard-access";
 import { sanitizeMediaUrl } from "../uploadthing-media";
 
 type RiderAvailabilityInput = "offline" | "idle" | "on_trip";
@@ -375,8 +375,8 @@ export async function bootstrapRiderProfile(): Promise<ActionState> {
     await connectToDatabase();
     const session = await getServerSession();
     if (!session?.user) throw new Error("Unauthorized");
-    if (!isRiderRole(session.user.role)) {
-      throw new Error("Only rider accounts can initialize rider profiles");
+    if (!canStartRiderOnboarding(session.user.role)) {
+      throw new Error("Unauthorized");
     }
 
     const profile = await RiderProfile.findOneAndUpdate(
@@ -387,6 +387,7 @@ export async function bootstrapRiderProfile(): Promise<ActionState> {
           fullName: session.user.name || "",
           role: "rider",
           phone: "",
+          location: "",
           vehicleType: "motorbike",
           status: "pending_kyc",
           availability: "offline",

@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { SidebarProvider } from "@/components/ui/sidebar";
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { getServerSession } from "@/lib/get-session";
 import { toSignInPath } from "@/lib/redirects";
 import { PRIVATE_ROBOTS } from "@/lib/seo";
 import { bootstrapRiderProfile } from "@/lib/actions/rider.actions";
-import { isRiderRole, canAccessRiderDashboard } from "@/lib/dashboard-access";
+import { canStartRiderOnboarding } from "@/lib/dashboard-access";
 import { RiderSidebar } from "./_components/rider-sidebar";
+import RiderTopbar from "./_components/rider-topbar";
 
 export const metadata: Metadata = {
   title: "Rider Dashboard",
@@ -23,12 +24,7 @@ export default async function RiderLayout({
     redirect(toSignInPath("/rider/jobs"));
   }
 
-  if (!canAccessRiderDashboard(session.user.role)) {
-    redirect("/forbidden");
-  }
-
-  // Only redirect non-rider roles away
-  if (!isRiderRole(session.user.role)) {
+  if (!canStartRiderOnboarding(session.user.role)) {
     redirect("/forbidden");
   }
 
@@ -36,6 +32,7 @@ export default async function RiderLayout({
 
   return (
     <SidebarProvider
+      className="bg-muted/30"
       style={
         {
           "--sidebar-width": "calc(var(--spacing) * 72)",
@@ -44,13 +41,14 @@ export default async function RiderLayout({
       }
     >
       <RiderSidebar />
-      <div className="flex flex-1 flex-col">
-        <div className="@container/main flex flex-1 flex-col gap-2">
-          <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-2">
+      <SidebarInset className="min-h-svh bg-linear-to-b from-background to-muted/25">
+        <RiderTopbar />
+        <div className="@container/main flex flex-1 flex-col">
+          <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col px-3 py-4 md:px-6 md:py-6">
             {children}
           </div>
         </div>
-      </div>
+      </SidebarInset>
     </SidebarProvider>
   );
 }

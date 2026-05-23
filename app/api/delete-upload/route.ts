@@ -7,6 +7,9 @@ import { extractUploadthingFileKey } from "@/lib/uploadthing-media";
 
 const utapi = new UTApi();
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 const payloadSchema = z
   .object({
     url: z.string().trim().optional(),

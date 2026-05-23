@@ -1,6 +1,6 @@
 import { connectToDatabase } from "@/lib/db";
 import RiderProfile from "@/lib/db/models/rider-profile.model";
-import { isRiderRole } from "@/lib/dashboard-access";
+import { canStartRiderOnboarding } from "@/lib/dashboard-access";
 import { getServerSession } from "@/lib/get-session";
 
 export type RiderScope = {
@@ -17,7 +17,7 @@ export async function getRiderScope(): Promise<RiderScope> {
   const session = await getServerSession();
   if (!session?.user) throw new Error("Unauthorized");
 
-  if (!isRiderRole(session.user.role)) throw new Error("Unauthorized");
+  if (!canStartRiderOnboarding(session.user.role)) throw new Error("Unauthorized");
 
   const riderProfile = await RiderProfile.findOne({ user: session.user.id })
     .select("_id status availability")
