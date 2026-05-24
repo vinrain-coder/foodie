@@ -64,7 +64,7 @@ export async function upsertUserAddress(
       fullName: parsed.fullName.trim(),
       street: parsed.street.trim(),
       city: parsed.city.trim(),
-      province: parsed.province.trim(),
+      county: parsed.county.trim(),
       country: parsed.country.trim(),
       postalCode: parsed.postalCode.trim(),
       phone: parsed.phone.trim(),

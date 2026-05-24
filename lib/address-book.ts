@@ -17,7 +17,7 @@ export function normalizeAddressBookEntries(source: unknown): AddressBookEntry[]
       entry.fullName.trim().toLowerCase(),
       entry.street.trim().toLowerCase(),
       entry.city.trim().toLowerCase(),
-      entry.province.trim().toLowerCase(),
+      entry.county.trim().toLowerCase(),
       entry.postalCode.trim().toLowerCase(),
       entry.country.trim().toLowerCase(),
       entry.phone.trim().toLowerCase(),

@@ -358,7 +358,7 @@ type PurchaseReceiptOrderTemplate = {
     fullName: string;
     street: string;
     city: string;
-    province: string;
+    county: string;
     country: string;
   };
   coupon?: {
@@ -533,7 +533,7 @@ export function purchaseReceiptTemplate({
   const escapedFullName = escapeHTML(order.shippingAddress.fullName);
   const escapedStreet = escapeHTML(order.shippingAddress.street);
   const escapedCity = escapeHTML(order.shippingAddress.city);
-  const escapedProvince = escapeHTML(order.shippingAddress.province);
+  const escapedCounty = escapeHTML(order.shippingAddress.county);
   const escapedCountry = escapeHTML(order.shippingAddress.country);
 
   const escapedPaymentMethod = escapeHTML(order.paymentMethod);
@@ -652,7 +652,7 @@ export function purchaseReceiptTemplate({
                       <p style="margin: 8px 0 0 0; font-size: 14px; line-height: 22px; color: ${colors.slate700};">
                         <strong>${escapedFullName}</strong><br>
                         ${escapedStreet}<br>
-                        ${escapedCity}, ${escapedProvince}<br>
+                        ${escapedCity}, ${escapedCounty}<br>
                         ${escapedCountry}
                       </p>
                     </td>

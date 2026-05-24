@@ -28,7 +28,7 @@ export type ReceiptAddress = {
   line1: string;
   line2?: string;
   city: string;
-  province?: string;
+  county?: string;
   postalCode?: string;
   country: string;
 };

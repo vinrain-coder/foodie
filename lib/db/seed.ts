@@ -14,6 +14,26 @@ import Blog from "./models/blog.model";
 import Setting from "./models/setting.model";
 import WebPage from "./models/web-page.model";
 
+const SOCIAL_ICON_MAP = {
+  facebook: "/icons/facebook.svg",
+  twitter: "/icons/x.svg",
+  tiktok: "/icons/tiktok.svg",
+  youtube: "/icons/youtube.svg",
+  instagram: "/icons/instagram.svg",
+  whatsapp: "/icons/whatsapp.svg",
+  linkedin: "/icons/logo.png",
+} as const;
+
+const mapSettingForSeed = (setting: (typeof data.settings)[number]) => ({
+  ...setting,
+  socialMedia: Object.entries(setting.socialMedia).map(([name, url]) => ({
+    name,
+    url,
+    image: SOCIAL_ICON_MAP[name as keyof typeof SOCIAL_ICON_MAP] || "/icons/logo.png",
+    isPublished: true,
+  })),
+});
+
 const main = async () => {
   try {
     await connectToDatabase(process.env.MONGODB_URI);
@@ -47,8 +67,9 @@ const main = async () => {
     console.log(`Seeded ${data.blogs.length} blogs`);
 
     // Seed Settings
-    await Setting.insertMany(data.settings);
-    console.log("Seeded settings");
+    const normalizedSettings = data.settings.map(mapSettingForSeed);
+    await Setting.insertMany(normalizedSettings);
+    console.log(`Seeded ${normalizedSettings.length} settings`);
 
     // Seed WebPages
     await WebPage.insertMany(data.webPages);

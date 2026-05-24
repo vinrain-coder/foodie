@@ -26,10 +26,7 @@ import {
 import { getUserCoins, getUserWalletBalance } from "@/lib/actions/user.actions";
 import { getMenuItemsByIds } from "@/lib/actions/menu.item.actions";
 import { normalizeAddressBookEntries } from "@/lib/address-book";
-import {
-  calculateFutureMinutes,
-  FOOD_DELIVERY_ETA_MINUTES,
-} from "@/lib/utils";
+import { calculateFutureMinutes, FOOD_DELIVERY_ETA_MINUTES } from "@/lib/utils";
 import { ShippingAddressSchema } from "@/lib/validator";
 import { AddressBookEntry, ShippingAddress } from "@/types";
 import { IMenuItem } from "@/lib/db/models/menu.item.model";
@@ -474,7 +471,7 @@ export const useCheckoutForm = (
       fullName: selectedAddress.fullName,
       street: selectedAddress.street,
       city: selectedAddress.city,
-      province: selectedAddress.province,
+      county: selectedAddress.county,
       phone: selectedAddress.phone,
       postalCode: selectedAddress.postalCode,
       country: selectedAddress.country,
@@ -501,7 +498,7 @@ export const useCheckoutForm = (
     shippingAddressForm.setValue("city", shippingAddress.city);
     shippingAddressForm.setValue("country", shippingAddress.country);
     shippingAddressForm.setValue("postalCode", shippingAddress.postalCode);
-    shippingAddressForm.setValue("province", shippingAddress.province);
+    shippingAddressForm.setValue("county", shippingAddress.county);
     shippingAddressForm.setValue("phone", shippingAddress.phone);
   }, [isMounted, selectedSavedAddressId, shippingAddress, shippingAddressForm]);
 
@@ -542,11 +539,13 @@ export const useCheckoutForm = (
       setIsPlacingOrder(true);
       const defaultDeliveryDateIndex =
         availableDeliveryDates.length > 0
-          ? availableDeliveryDates.reduce((fastestIndex, option, index, arr) =>
-              option.daysToDeliver < arr[fastestIndex].daysToDeliver
-                ? index
-                : fastestIndex,
-            0)
+          ? availableDeliveryDates.reduce(
+              (fastestIndex, option, index, arr) =>
+                option.daysToDeliver < arr[fastestIndex].daysToDeliver
+                  ? index
+                  : fastestIndex,
+              0,
+            )
           : 0;
 
       const res = await createOrder({
@@ -555,9 +554,7 @@ export const useCheckoutForm = (
         note: note?.trim() || undefined,
         userEmail: shippingAddress?.email || (session?.user?.email as string),
         userName: shippingAddress?.fullName || (session?.user?.name as string),
-        expectedDeliveryDate: calculateFutureMinutes(
-          FOOD_DELIVERY_ETA_MINUTES,
-        ),
+        expectedDeliveryDate: calculateFutureMinutes(FOOD_DELIVERY_ETA_MINUTES),
         deliveryDateIndex: deliveryDateIndex ?? defaultDeliveryDateIndex,
         paymentMethod,
         itemsPrice,

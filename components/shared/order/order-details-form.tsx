@@ -215,7 +215,7 @@ export default function OrderDetailsForm({
             </p>
             <p>
               {shippingAddress.street}, {shippingAddress.city}, {" "}
-              {shippingAddress.province}, {shippingAddress.postalCode}, {" "}
+              {shippingAddress.county}, {shippingAddress.postalCode}, {" "}
               {shippingAddress.country}{" "}
             </p>
             {order.note && (

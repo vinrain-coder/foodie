@@ -64,7 +64,7 @@ export const AddressSection = ({
             {shippingAddress.fullName}{" "}
             {shippingAddress.email ? `( ${shippingAddress.email})` : ""} <br />
             {shippingAddress.street} <br />
-            {`${shippingAddress.city}, ${shippingAddress.province}, ${shippingAddress.postalCode}, ${shippingAddress.country}`}
+            {`${shippingAddress.city}, ${shippingAddress.county}, ${shippingAddress.postalCode}, ${shippingAddress.country}`}
           </p>
         </div>
         <div className="col-span-2">
@@ -154,7 +154,7 @@ export const AddressSection = ({
                       email: address.email,
                       fullName: address.fullName,
                       street: address.street,
-                      province: address.province,
+                      county: address.county,
                       city: address.city,
                       postalCode: address.postalCode,
                       country: address.country,
@@ -194,7 +194,7 @@ export const AddressSection = ({
                     </p>
 
                     <p className="wrap-break-word text-xs sm:text-sm">
-                      {address.street}, {address.city}, {address.province},{" "}
+                      {address.street}, {address.city}, {address.county},{" "}
                       {address.postalCode}, {address.country}
                     </p>
 
@@ -346,8 +346,25 @@ export const AddressSection = ({
                     </Field>
                   )}
                 />
+                <Controller
+                  control={shippingAddressForm.control}
+                  name="email"
+                  render={({ field, fieldState }) => (
+                    <Field className="w-full" data-invalid={fieldState.invalid}>
+                      <FieldLabel>Email</FieldLabel>
+
+                      <Input
+                        placeholder="Enter your email address"
+                        aria-invalid={fieldState.invalid}
+                        {...field}
+                      />
+
+                      <FieldError errors={[fieldState.error]} />
+                    </Field>
+                  )}
+                />
               </div>
-              <div>
+              <div className="flex flex-col gap-5 md:flex-row">
                 <Controller
                   control={shippingAddressForm.control}
                   name="street"
@@ -365,11 +382,28 @@ export const AddressSection = ({
                     </Field>
                   )}
                 />
+                <Controller
+                  control={shippingAddressForm.control}
+                  name="street"
+                  render={({ field, fieldState }) => (
+                    <Field className="w-full" data-invalid={fieldState.invalid}>
+                      <FieldLabel>Street</FieldLabel>
+
+                      <Input
+                        placeholder="Enter street name"
+                        aria-invalid={fieldState.invalid}
+                        {...field}
+                      />
+
+                      <FieldError errors={[fieldState.error]} />
+                    </Field>
+                  )}
+                />
               </div>
               <div className="flex flex-col gap-5 md:flex-row">
                 <Controller
                   control={shippingAddressForm.control}
-                  name="province"
+                  name="county"
                   render={({ field, fieldState }) => (
                     <Field className="w-full" data-invalid={fieldState.invalid}>
                       <FieldLabel>County</FieldLabel>

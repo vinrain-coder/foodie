@@ -56,7 +56,7 @@ export interface IOrder extends Document {
     city: string;
     postalCode: string;
     country: string;
-    province: string;
+    county: string;
     phone: string;
   };
   note?: string;
@@ -225,7 +225,7 @@ const orderSchema = new Schema<IOrder>(
       city: { type: String, required: true },
       postalCode: { type: String, required: true },
       country: { type: String, required: true },
-      province: { type: String, required: true },
+      county: { type: String, required: true },
       phone: { type: String, required: true },
     },
     note: { type: String },

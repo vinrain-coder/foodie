@@ -42,7 +42,7 @@ const emptyAddress: AddressBookFormInput = {
   fullName: "",
   street: "",
   city: "",
-  province: "",
+  county: "",
   postalCode: "",
   country: "Kenya",
   phone: "",
@@ -98,7 +98,7 @@ export default function AddressBook({
       fullName: address.fullName,
       street: address.street,
       city: address.city,
-      province: address.province,
+      county: address.county,
       postalCode: address.postalCode,
       country: address.country,
       phone: address.phone,
@@ -256,7 +256,7 @@ export default function AddressBook({
                   <p className="font-medium">{address.fullName}</p>
                   <p>{address.street}</p>
                   <p>
-                    {address.city}, {address.province} {address.postalCode}
+                    {address.city}, {address.county} {address.postalCode}
                   </p>
                   <p>{address.country}</p>
                   <p>{address.phone}</p>
@@ -360,13 +360,14 @@ export default function AddressBook({
                   render={({ field, fieldState }) => (
                     <Field data-invalid={fieldState.invalid}>
                       <FieldLabel>Label</FieldLabel>
-                      
-                        <Input
-                          placeholder="Home, Office, Family..."
-                          aria-invalid={fieldState.invalid} {...field}
-                        />
-                      
-                      <FieldError  errors={[fieldState.error]} />
+
+                      <Input
+                        placeholder="Home, Office, Family..."
+                        aria-invalid={fieldState.invalid}
+                        {...field}
+                      />
+
+                      <FieldError errors={[fieldState.error]} />
                     </Field>
                   )}
                 />
@@ -377,10 +378,14 @@ export default function AddressBook({
                   render={({ field, fieldState }) => (
                     <Field data-invalid={fieldState.invalid}>
                       <FieldLabel>Full name</FieldLabel>
-                      
-                        <Input placeholder="e.g. Jane Wanjiku" aria-invalid={fieldState.invalid} {...field} />
-                      
-                      <FieldError  errors={[fieldState.error]} />
+
+                      <Input
+                        placeholder="e.g. Jane Wanjiku"
+                        aria-invalid={fieldState.invalid}
+                        {...field}
+                      />
+
+                      <FieldError errors={[fieldState.error]} />
                     </Field>
                   )}
                 />
@@ -391,10 +396,14 @@ export default function AddressBook({
                   render={({ field, fieldState }) => (
                     <Field data-invalid={fieldState.invalid}>
                       <FieldLabel>Phone number</FieldLabel>
-                      
-                        <Input placeholder="e.g. 0712345678" aria-invalid={fieldState.invalid} {...field} />
-                      
-                      <FieldError  errors={[fieldState.error]} />
+
+                      <Input
+                        placeholder="e.g. 0712345678"
+                        aria-invalid={fieldState.invalid}
+                        {...field}
+                      />
+
+                      <FieldError errors={[fieldState.error]} />
                     </Field>
                   )}
                 />
@@ -405,17 +414,21 @@ export default function AddressBook({
                   render={({ field, fieldState }) => (
                     <Field data-invalid={fieldState.invalid}>
                       <FieldLabel>Country</FieldLabel>
-                      
-                        <Input placeholder="Kenya" aria-invalid={fieldState.invalid} {...field} />
-                      
-                      <FieldError  errors={[fieldState.error]} />
+
+                      <Input
+                        placeholder="Kenya"
+                        aria-invalid={fieldState.invalid}
+                        {...field}
+                      />
+
+                      <FieldError errors={[fieldState.error]} />
                     </Field>
                   )}
                 />
 
                 <Controller
                   control={form.control}
-                  name="province"
+                  name="county"
                   render={({ field, fieldState }) => (
                     <Field data-invalid={fieldState.invalid}>
                       <FieldLabel>County</FieldLabel>
@@ -424,7 +437,7 @@ export default function AddressBook({
                         aria-invalid={fieldState.invalid}
                         {...field}
                       />
-                      <FieldError  errors={[fieldState.error]} />
+                      <FieldError errors={[fieldState.error]} />
                     </Field>
                   )}
                 />
@@ -441,7 +454,7 @@ export default function AddressBook({
                         {...field}
                       />
 
-                      <FieldError  errors={[fieldState.error]} />
+                      <FieldError errors={[fieldState.error]} />
                     </Field>
                   )}
                 />
@@ -450,15 +463,19 @@ export default function AddressBook({
                   control={form.control}
                   name="street"
                   render={({ field, fieldState }) => (
-                    <Field className="sm:col-span-2" data-invalid={fieldState.invalid}>
+                    <Field
+                      className="sm:col-span-2"
+                      data-invalid={fieldState.invalid}
+                    >
                       <FieldLabel>Street address</FieldLabel>
-                      
-                        <Input
-                          placeholder="e.g. TRM Drive, House 13"
-                          aria-invalid={fieldState.invalid} {...field}
-                        />
-                      
-                      <FieldError  errors={[fieldState.error]} />
+
+                      <Input
+                        placeholder="e.g. TRM Drive, House 13"
+                        aria-invalid={fieldState.invalid}
+                        {...field}
+                      />
+
+                      <FieldError errors={[fieldState.error]} />
                     </Field>
                   )}
                 />
@@ -469,10 +486,14 @@ export default function AddressBook({
                   render={({ field, fieldState }) => (
                     <Field data-invalid={fieldState.invalid}>
                       <FieldLabel>Postal code</FieldLabel>
-                      
-                        <Input placeholder="e.g. 00100" aria-invalid={fieldState.invalid} {...field} />
-                      
-                      <FieldError  errors={[fieldState.error]} />
+
+                      <Input
+                        placeholder="e.g. 00100"
+                        aria-invalid={fieldState.invalid}
+                        {...field}
+                      />
+
+                      <FieldError errors={[fieldState.error]} />
                     </Field>
                   )}
                 />
@@ -484,15 +505,16 @@ export default function AddressBook({
                 control={form.control}
                 name="saveAsDefault"
                 render={({ field, fieldState }) => (
-                  <Field className="flex flex-row items-center gap-3 space-y-0 rounded-xl border bg-muted/20 p-3" data-invalid={fieldState.invalid}>
-                    
-                      <Checkbox
-                        checked={field.value}
-                        onCheckedChange={(checked) =>
-                          field.onChange(Boolean(checked))
-                        }
-                      />
-                    
+                  <Field
+                    className="flex flex-row items-center gap-3 space-y-0 rounded-xl border bg-muted/20 p-3"
+                    data-invalid={fieldState.invalid}
+                  >
+                    <Checkbox
+                      checked={field.value}
+                      onCheckedChange={(checked) =>
+                        field.onChange(Boolean(checked))
+                      }
+                    />
 
                     <div className="space-y-0.5">
                       <FieldLabel className="cursor-pointer">

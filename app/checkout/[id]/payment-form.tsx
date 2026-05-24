@@ -158,7 +158,7 @@ export default function OrderDetailsForm({
                 <p>
                   {shippingAddress.fullName} <br />
                   {shippingAddress.street} <br />
-                  {`${shippingAddress.city}, ${shippingAddress.province}, ${shippingAddress.postalCode}, ${shippingAddress.country}`}
+                  {`${shippingAddress.city}, ${shippingAddress.county}, ${shippingAddress.postalCode}, ${shippingAddress.country}`}
                 </p>
               </div>
             </div>

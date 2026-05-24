@@ -122,12 +122,12 @@ export const OrderItemSchema = z.object({
 export const ShippingAddressSchema = z.object({
   email: z.string().email().optional(),
   fullName: z.string().min(1, "Full name is required"),
-  street: z.string().min(1, "Address is required"),
-  city: z.string().min(1, "City is required"),
-  postalCode: z.string().min(1, "Postal code is required"),
-  province: z.string().min(1, "Province is required"),
-  phone: z.string().min(1, "Phone number is required"),
   country: z.string().min(1, "Country is required"),
+  county: z.string().min(1, "County is required"),
+  city: z.string().min(1, "City is required"),
+  street: z.string().min(1, "Address is required"),
+  postalCode: z.string().min(1, "Postal code is required"),
+  phone: z.string().min(1, "Phone number is required"),
 });
 
 export const AddressBookEntrySchema = ShippingAddressSchema.extend({
@@ -352,7 +352,7 @@ export const UserInputSchema = z.object({
     fullName: z.string().min(1, "Full name is required"),
     street: z.string().min(1, "Street is required"),
     city: z.string().min(1, "City is required"),
-    province: z.string().min(1, "Province is required"),
+    county: z.string().min(1, "County is required"),
     postalCode: z.string().min(1, "Postal code is required"),
     country: z.string().min(1, "Country is required"),
     phone: z.string().min(1, "Phone number is required"),
@@ -857,17 +857,13 @@ export const RestaurantApplicationInputSchema = z.object({
 
 export const RestaurantRegistrationInputSchema =
   RestaurantApplicationInputSchema.extend({
-    termsAccepted: z
-      .boolean()
-      .refine((value) => value === true, {
-        message: "You must accept the platform terms and onboarding policy",
-      }),
-    attestationAccepted: z
-      .boolean()
-      .refine((value) => value === true, {
-        message:
-          "You must confirm that the submitted business information is accurate",
-      }),
+    termsAccepted: z.boolean().refine((value) => value === true, {
+      message: "You must accept the platform terms and onboarding policy",
+    }),
+    attestationAccepted: z.boolean().refine((value) => value === true, {
+      message:
+        "You must confirm that the submitted business information is accurate",
+    }),
     website: z.string().max(0).optional().or(z.literal("")),
   });
 
@@ -942,8 +938,15 @@ export const RiderRegistrationInputSchema = z
       .trim()
       .min(5, "Location is required")
       .max(300, "Location is too long"),
-    vehicleType: z.enum(["bicycle", "motorbike", "car", "van"]).default("motorbike"),
-    capacity: z.coerce.number().int("Capacity must be a whole number").min(1).max(10).default(1),
+    vehicleType: z
+      .enum(["bicycle", "motorbike", "car", "van"])
+      .default("motorbike"),
+    capacity: z.coerce
+      .number()
+      .int("Capacity must be a whole number")
+      .min(1)
+      .max(10)
+      .default(1),
     plateNumber: z.string().trim().max(30).optional().or(z.literal("")),
     licenseNumber: z
       .string()
@@ -960,7 +963,11 @@ export const RiderRegistrationInputSchema = z
       .url("Identity document must be a valid URL")
       .optional()
       .or(z.literal("")),
-    selfieUrl: z.string().url("Selfie must be a valid URL").optional().or(z.literal("")),
+    selfieUrl: z
+      .string()
+      .url("Selfie must be a valid URL")
+      .optional()
+      .or(z.literal("")),
     vehicleLicenseUrl: z
       .string()
       .url("Vehicle license must be a valid URL")
@@ -1044,23 +1051,4 @@ export const SupportTicketInputSchema = z.object({
   type: z.enum(["complaint", "query", "recommendation"]),
   subject: z.string().trim().min(5, "Subject must be at least 5 characters"),
   message: z.string().trim().min(10, "Message must be at least 10 characters"),
-});
-
-// BNPL Payment Schema
-export const BNPLPaymentInputSchema = z.object({
-  order: MongoId,
-  user: MongoId,
-  amount: Price("Amount"),
-  paymentMethod: z.string().min(1, "Payment method is required"),
-  reference: z.string().optional(),
-  status: z
-    .enum(["pending", "success", "failed", "cancelled", "reversed"])
-    .default("pending"),
-  type: z
-    .enum(["repayment", "adjustment", "waiver", "refund"])
-    .default("repayment"),
-  notes: z.string().optional(),
-  processedBy: z.string().optional(),
-  source: z.enum(["paystack", "wallet", "manual", "system"]),
-  paymentResult: z.record(z.string(), z.any()).optional(),
 });

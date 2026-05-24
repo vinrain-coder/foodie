@@ -50,7 +50,7 @@ export const formatDocumentDate = (
 
 export const toAddressLines = (address?: ReceiptAddress) => {
   if (!address) return ["-"];
-  const cityLine = [address.city, address.province, address.postalCode]
+  const cityLine = [address.city, address.county, address.postalCode]
     .filter(Boolean)
     .join(", ");
 
@@ -110,7 +110,7 @@ export const mapSerializedOrderToReceiptDocument = ({
   const shippingAddress = {
     line1: order.shippingAddress.street,
     city: order.shippingAddress.city,
-    province: order.shippingAddress.province,
+    county: order.shippingAddress.county,
     postalCode: order.shippingAddress.postalCode,
     country: order.shippingAddress.country,
   };
