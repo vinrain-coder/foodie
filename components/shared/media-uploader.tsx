@@ -1,7 +1,7 @@
 "use client";
 
 import { Field, FieldLabel, FieldError } from "@/components/ui/field";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import { useDropzone } from "react-dropzone";
 import { useUploadThing } from "@/lib/uploadthing";
@@ -12,6 +12,7 @@ import {
   PathValue,
   UseFormReturn,
   Controller,
+  useWatch,
 } from "react-hook-form";
 
 import { Card, CardContent } from "@/components/ui/card";
@@ -36,24 +37,6 @@ const IMAGE_AND_VIDEO_ACCEPT = {
   "image/*": [],
   "video/*": [],
 } as const;
-
-const areMediaListsEqual = (a: MediaItem[], b: MediaItem[]) => {
-  if (a.length !== b.length) return false;
-  for (let index = 0; index < a.length; index += 1) {
-    if (a[index]?.url !== b[index]?.url || a[index]?.type !== b[index]?.type) {
-      return false;
-    }
-  }
-  return true;
-};
-
-const areStringListsEqual = (a: string[], b: string[]) => {
-  if (a.length !== b.length) return false;
-  for (let index = 0; index < a.length; index += 1) {
-    if (a[index] !== b[index]) return false;
-  }
-  return true;
-};
 
 function MediaPreview({
   item,
@@ -152,16 +135,15 @@ export default function MediaUploader<TFieldValues extends FieldValues>({
   multiple = false,
   maxFiles = multiple ? 6 : 1,
 }: MediaUploaderProps<TFieldValues>) {
-  const [media, setMedia] = useState<MediaItem[]>([]);
   const [progress, setProgress] = useState(0);
   const [pasteEnabled, setPasteEnabled] = useState(false);
 
   const acceptsVideo = uploadRoute === "menuItems";
   const acceptedTypes = acceptsVideo ? IMAGE_AND_VIDEO_ACCEPT : IMAGE_ONLY_ACCEPT;
 
-  const value = form.watch(name) as unknown;
+  const value = useWatch({ control: form.control, name }) as unknown;
 
-  const normalizedFromForm = useMemo(() => {
+  const media = useMemo(() => {
     const urls = Array.isArray(value) ? value : [value];
     return dedupeMediaUrls(
       urls
@@ -170,39 +152,28 @@ export default function MediaUploader<TFieldValues extends FieldValues>({
     ).map((url) => ({ url, type: getMediaTypeFromUrl(url) }));
   }, [value]);
 
-  useEffect(() => {
-    setMedia((previous) =>
-      areMediaListsEqual(previous, normalizedFromForm)
-        ? previous
-        : normalizedFromForm,
-    );
-  }, [normalizedFromForm]);
+  const setFieldUrls = useCallback(
+    (urls: string[]) => {
+      const normalized = dedupeMediaUrls(urls.filter((url) => isSafeMediaUrl(url))).slice(0, maxFiles);
+      const nextValue = multiple ? normalized : (normalized[0] ?? "");
 
-  useEffect(() => {
-    const nextValue = multiple
-      ? media.map((item) => item.url)
-      : media[0]?.url || "";
-
-    if (multiple) {
-      const currentValue = Array.isArray(value)
-        ? value.filter((entry): entry is string => typeof entry === "string")
-        : [];
-      const nextArray = nextValue as string[];
-      if (areStringListsEqual(currentValue, nextArray)) return;
-    } else {
-      const currentValue = typeof value === "string" ? value : "";
-      if (currentValue === nextValue) return;
-    }
-
-    form.setValue(
-      name,
-      nextValue as PathValue<TFieldValues, Path<TFieldValues>>,
-      {
+      form.setValue(name, nextValue as PathValue<TFieldValues, Path<TFieldValues>>, {
         shouldDirty: true,
         shouldValidate: true,
-      },
+      });
+    },
+    [form, maxFiles, multiple, name],
+  );
+
+  const getCurrentUrls = useCallback(() => {
+    const current = form.getValues(name) as unknown;
+    const urls = Array.isArray(current) ? current : [current];
+    return dedupeMediaUrls(
+      urls
+        .map((entry) => (typeof entry === "string" ? entry : ""))
+        .filter((entry) => isSafeMediaUrl(entry)),
     );
-  }, [form, media, multiple, name, value]);
+  }, [form, name]);
 
   const { startUpload, isUploading } = useUploadThing(uploadRoute, {
     onClientUploadComplete: (result) => {
@@ -216,14 +187,11 @@ export default function MediaUploader<TFieldValues extends FieldValues>({
         return;
       }
 
-      setMedia((previous) => {
-        const next = multiple
-          ? [...previous.map((item) => item.url), ...uploadedUrls]
-          : [uploadedUrls[uploadedUrls.length - 1]];
-        return dedupeMediaUrls(next)
-          .slice(0, maxFiles)
-          .map((url) => ({ url, type: getMediaTypeFromUrl(url) }));
-      });
+      const currentUrls = getCurrentUrls();
+      const nextUrls = multiple
+        ? [...currentUrls, ...uploadedUrls]
+        : [uploadedUrls[uploadedUrls.length - 1]];
+      setFieldUrls(nextUrls);
 
       setProgress(0);
       toast.success("Upload completed");
@@ -278,10 +246,11 @@ export default function MediaUploader<TFieldValues extends FieldValues>({
         throw new Error(payload?.message || "Failed to delete file");
       }
 
-      setMedia((previous) => previous.filter((item) => item.url !== url));
+      setFieldUrls(media.filter((item) => item.url !== url).map((item) => item.url));
       toast.success("File deleted");
-    } catch (error: any) {
-      toast.error(error?.message || "Failed to delete uploaded file");
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to delete uploaded file";
+      toast.error(message);
     }
   };
 
