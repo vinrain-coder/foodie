@@ -7,9 +7,6 @@ import { extractUploadthingFileKey } from "@/lib/uploadthing-media";
 
 const utapi = new UTApi();
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
-
 const payloadSchema = z
   .object({
     url: z.string().trim().optional(),
@@ -31,7 +28,8 @@ export async function POST(req: NextRequest) {
 
     const payload = payloadSchema.parse(await req.json());
     const fileKey =
-      payload.fileKey || (payload.url ? extractUploadthingFileKey(payload.url) : "");
+      payload.fileKey ||
+      (payload.url ? extractUploadthingFileKey(payload.url) : "");
 
     if (!fileKey) {
       return NextResponse.json(
@@ -46,7 +44,10 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { success: false, message: error.issues[0]?.message || "Invalid payload" },
+        {
+          success: false,
+          message: error.issues[0]?.message || "Invalid payload",
+        },
         { status: 400 },
       );
     }
