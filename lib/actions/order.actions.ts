@@ -58,6 +58,10 @@ import {
 import Affiliate from "../db/models/affiliate.model";
 import AffiliateEarning from "../db/models/affiliate-earning.model";
 import { cookies } from "next/headers";
+import {
+  AFFILIATE_TRACKING_COOKIE_KEY,
+  getAffiliateCodeFromCookieKeys,
+} from "@/lib/affiliate-tracking";
 import Restaurant from "../db/models/restaurant.model";
 import { canAccessAdminDashboard } from "@/lib/dashboard-access";
 import { getStaffScope } from "@/lib/staff-scope";
@@ -69,6 +73,7 @@ import {
   createDeliveryJobForPackedOrder,
   markDeliveryJobCancelledByOrder,
 } from "./rider.actions";
+import { emitAffiliateCompetitionCommissionEvent } from "@/lib/affiliate-competition/events";
 
 export type SerializedOrder = Omit<IOrder, "_id"> & { _id: string };
 
@@ -569,6 +574,27 @@ const revertOrderEffects = async (
         },
         { session },
       );
+
+      try {
+        await emitAffiliateCompetitionCommissionEvent({
+          affiliateId: String(order.affiliate),
+          orderId: order._id.toString(),
+          affiliateEarningId: earning._id.toString(),
+          amount: Number(earning.amount || 0),
+          eventType: "commission_reversed",
+          occurredAt: earning.updatedAt || new Date(),
+          idempotencyKey: `affcomp:reverse:${earning._id.toString()}`,
+          session,
+          metadata: {
+            source: "revert_order_effects",
+          },
+        });
+      } catch (competitionEventError) {
+        console.error(
+          "Non-critical: Failed to emit affiliate competition reverse event:",
+          competitionEventError,
+        );
+      }
     }
   }
 
@@ -839,8 +865,21 @@ export const createOrderFromCart = async (
   | { success: false; message: string; errors?: Record<string, string[]> }
 > => {
   const cookieStore = await cookies();
-  let affiliateCode = cookieStore.get("affiliate_code")?.value;
+  const resolvedAffiliateCookie = getAffiliateCodeFromCookieKeys((key) =>
+    cookieStore.get(key)?.value,
+  );
+  let affiliateCode = resolvedAffiliateCookie?.value;
   let affiliateId: string | undefined;
+
+  if (
+    resolvedAffiliateCookie?.value &&
+    resolvedAffiliateCookie.key !== AFFILIATE_TRACKING_COOKIE_KEY
+  ) {
+    cookieStore.set(AFFILIATE_TRACKING_COOKIE_KEY, resolvedAffiliateCookie.value, {
+      path: "/",
+      sameSite: "lax",
+    });
+  }
 
   if (affiliateCode) {
     const affiliate = await getAffiliateByCode(affiliateCode);
@@ -1290,7 +1329,7 @@ export const runPostPaymentSideEffects = async (orderId: string) => {
               order: order._id,
             });
             if (!existingEarning) {
-              await AffiliateEarning.create({
+              const earning = await AffiliateEarning.create({
                 affiliate: order.affiliate,
                 order: order._id,
                 amount: commissionAmount,
@@ -1304,6 +1343,20 @@ export const runPostPaymentSideEffects = async (orderId: string) => {
                   totalEarnings: commissionAmount,
                 },
               });
+
+              await emitAffiliateCompetitionCommissionEvent({
+                affiliateId: String(order.affiliate),
+                orderId: order._id.toString(),
+                affiliateEarningId: earning._id.toString(),
+                amount: commissionAmount,
+                eventType: "commission_earned",
+                occurredAt: earning.createdAt || new Date(),
+                idempotencyKey: `affcomp:earn:${earning._id.toString()}`,
+                metadata: {
+                  source: "run_post_payment_side_effects",
+                },
+              });
+
               revalidatePath("/affiliate/dashboard");
             }
           }

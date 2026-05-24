@@ -512,6 +512,7 @@ export const SettingInputSchema = z.object({
     copyright: z.string().min(1, "Copyright is required"),
     address: z.string().min(1, "Address is required"),
     businessHours: z.string().min(1, "Business hours is required"),
+    timezone: z.string().trim().min(1).default("UTC"),
   }),
   notifications: z.object({
     sms: SmsNotificationSchema,
@@ -542,6 +543,34 @@ export const SettingInputSchema = z.object({
     defaultDiscountRate: z.coerce.number().min(0).default(5),
     cookieExpiryDays: z.coerce.number().min(1).default(30),
     minWithdrawalAmount: z.coerce.number().min(0).default(1000),
+    competition: z
+      .object({
+        timezone: z.string().trim().default(""),
+        minQualifiedOrders: z
+          .object({
+            daily: z.coerce.number().int().min(0).default(1),
+            weekly: z.coerce.number().int().min(0).default(2),
+            monthly: z.coerce.number().int().min(0).default(4),
+            yearly: z.coerce.number().int().min(0).default(12),
+          })
+          .default({
+            daily: 1,
+            weekly: 2,
+            monthly: 4,
+            yearly: 12,
+          }),
+        refundRatioCeiling: z.coerce.number().min(0).max(1).nullable().default(null),
+      })
+      .default({
+        timezone: "",
+        minQualifiedOrders: {
+          daily: 1,
+          weekly: 2,
+          monthly: 4,
+          yearly: 12,
+        },
+        refundRatioCeiling: null,
+      }),
   }),
 });
 

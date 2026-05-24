@@ -8,7 +8,8 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "seed": "npx tsx lib/db/seed.ts"
+    "seed": "npx tsx lib/db/seed.ts",
+    "backfill:affiliate-competition": "npx tsx lib/migrations/backfill-affiliate-competition-events.ts"
   },
   "dependencies": {
     "@auth/mongodb-adapter": "^3.11.2",

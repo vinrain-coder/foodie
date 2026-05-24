@@ -7,6 +7,10 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
 import Cookies from "js-cookie";
+import {
+  AFFILIATE_TRACKING_COOKIE_KEY,
+  LEGACY_AFFILIATE_TRACKING_COOKIE_KEYS,
+} from "@/lib/affiliate-tracking";
 
 import { authClient } from "@/lib/auth-client";
 import useCartStore from "@/hooks/use-cart-store";
@@ -313,7 +317,11 @@ export const useCheckoutForm = (
       !isApplyingCoupon &&
       !hasAutoAppliedAffiliate.current
     ) {
-      const affiliateCode = Cookies.get("affiliate_code");
+      const affiliateCode =
+        Cookies.get(AFFILIATE_TRACKING_COOKIE_KEY) ||
+        LEGACY_AFFILIATE_TRACKING_COOKIE_KEYS.map((key) => Cookies.get(key)).find(
+          (value) => Boolean(value),
+        );
       if (affiliateCode) {
         hasAutoAppliedAffiliate.current = true;
         handleApplyCoupon(affiliateCode);
@@ -575,7 +583,7 @@ export const useCheckoutForm = (
       if (!res.success || !res.data) {
         if (res.errors) {
           Object.entries(res.errors).forEach(([field, messages]) => {
-            shippingAddressForm.setError(field as any, {
+            shippingAddressForm.setError(field as keyof ShippingAddress, {
               type: "server",
               message: messages.join(". "),
             });

@@ -48,12 +48,53 @@ import {
   XAxis,
 } from "recharts";
 import Price from "@/components/shared/menuItem/price";
+import AffiliateCompetitionSection from "@/components/affiliate/competition-section";
 
 interface CustomTooltipProps {
   active?: boolean;
   payload?: { value: number | undefined }[];
   label?: string;
 }
+
+type EarningsPoint = {
+  date: string;
+  totalEarnings: number;
+};
+
+type MonthlyEarningPoint = {
+  label: string;
+  value: number;
+};
+
+type AffiliateDashboardData = {
+  affiliate: {
+    status: "approved" | "pending" | "rejected";
+    adminNote?: string;
+    earningsBalance: number;
+    totalEarnings: number;
+    affiliateCode: string;
+  };
+  recentEarnings: Array<{
+    _id: string;
+    amount: number;
+    status: "earned" | "pending" | "cancelled";
+    createdAt: string;
+    order?: { trackingNumber?: string };
+  }>;
+  recentPayouts: Array<{
+    _id: string;
+    amount: number;
+    status: "paid" | "pending" | "rejected";
+    paymentMethod: string;
+    createdAt: string;
+  }>;
+};
+
+type AffiliateAnalyticsData = {
+  earningsData: EarningsPoint[];
+  monthlyEarnings: MonthlyEarningPoint[];
+  totalEarningsInPeriod: number;
+};
 
 const CustomTooltip: React.FC<CustomTooltipProps> = ({
   active,
@@ -75,7 +116,7 @@ const CustomTooltip: React.FC<CustomTooltipProps> = ({
   return null;
 };
 
-function EarningsAreaChart({ data }: { data: any[] }) {
+function EarningsAreaChart({ data }: { data: EarningsPoint[] }) {
   return (
     <ResponsiveContainer width="100%" height={250}>
       <AreaChart data={data}>
@@ -99,7 +140,7 @@ function EarningsAreaChart({ data }: { data: any[] }) {
   );
 }
 
-function MonthlyEarningsChart({ data }: { data: any[] }) {
+function MonthlyEarningsChart({ data }: { data: MonthlyEarningPoint[] }) {
   return (
     <ResponsiveContainer width="100%" height={200}>
       <AreaChart data={data}>
@@ -195,8 +236,8 @@ export default function AffiliateDashboardPage() {
     to: new Date(),
   });
 
-  const [dashboardData, setDashboardData] = useState<any>(null);
-  const [analyticsData, setAnalyticsData] = useState<any>(null);
+  const [dashboardData, setDashboardData] = useState<AffiliateDashboardData | null>(null);
+  const [analyticsData, setAnalyticsData] = useState<AffiliateAnalyticsData | null>(null);
   const [siteUrl, setSiteUrl] = useState<string>("");
   const [isPending, startTransition] = useTransition();
 
@@ -219,8 +260,8 @@ export default function AffiliateDashboardPage() {
           from: date.from?.toISOString(),
           to: date.to?.toISOString(),
         });
-        if (analytics.success) {
-          setAnalyticsData(analytics.data);
+        if (analytics.success && analytics.data) {
+          setAnalyticsData(analytics.data as AffiliateAnalyticsData);
         }
       });
     }
@@ -335,6 +376,8 @@ export default function AffiliateDashboardPage() {
           )}
         </CardContent>
       </Card>
+
+      <AffiliateCompetitionSection />
 
       {/* ❌ REJECTED STATE */}
       {affiliate.status === "rejected" && (
@@ -483,7 +526,7 @@ export default function AffiliateDashboardPage() {
               </p>
             ) : (
               <div className="space-y-4">
-                {recentEarnings.map((earning: any) => (
+                {recentEarnings.map((earning) => (
                   <div
                     key={earning._id}
                     className="flex justify-between items-center border-b pb-2"
@@ -533,7 +576,7 @@ export default function AffiliateDashboardPage() {
               </p>
             ) : (
               <div className="space-y-4">
-                {recentPayouts.map((payout: any) => (
+                {recentPayouts.map((payout) => (
                   <div
                     key={payout._id}
                     className="flex justify-between items-center border-b pb-2"
@@ -573,3 +616,5 @@ export default function AffiliateDashboardPage() {
     </div>
   );
 }
+
+

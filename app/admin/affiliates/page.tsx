@@ -4,6 +4,8 @@ import StatusCards from "./status-cards";
 import { AffiliatesDateRangePicker } from "./date-range-picker";
 import AffiliateStats from "./affiliate-stats";
 import AffiliateFilters from "./affiliate-filters";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
 
 export default async function Page({
   searchParams,
@@ -79,6 +81,11 @@ export default async function Page({
           </p>
         </div>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <Button asChild variant="outline">
+            <Link href="/admin/affiliates/competitions">
+              Competition Monitor
+            </Link>
+          </Button>
           <AffiliateFilters />
           <AffiliatesDateRangePicker />
         </div>

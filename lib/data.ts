@@ -423,6 +423,7 @@ If an order arrives incorrect, delayed beyond expectations, or compromised in qu
         address: "Nairobi, Kenya",
         phone: "+254 700 000000",
         businessHours: "Mon - Sat | 9:00 AM - 7:00 PM",
+        timezone: "Africa/Nairobi",
       },
       socialMedia: {
         facebook: "https://www.facebook.com/tumafood",
@@ -522,6 +523,16 @@ If an order arrives incorrect, delayed beyond expectations, or compromised in qu
         defaultDiscountRate: 5,
         cookieExpiryDays: 30,
         minWithdrawalAmount: 1000,
+        competition: {
+          timezone: "Africa/Nairobi",
+          minQualifiedOrders: {
+            daily: 1,
+            weekly: 2,
+            monthly: 4,
+            yearly: 12,
+          },
+          refundRatioCeiling: null,
+        },
       },
     },
   ],

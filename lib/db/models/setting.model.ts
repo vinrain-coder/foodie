@@ -33,6 +33,7 @@ const settingSchema = new Schema<ISetting>(
       copyright: { type: String, required: true },
       address: { type: String, required: true },
       businessHours: { type: String, required: true },
+      timezone: { type: String, default: "UTC" },
     },
     socialMedia: [
       {
@@ -139,6 +140,16 @@ const settingSchema = new Schema<ISetting>(
       defaultDiscountRate: { type: Number, required: true, default: 5 },
       cookieExpiryDays: { type: Number, required: true, default: 30 },
       minWithdrawalAmount: { type: Number, required: true, default: 1000 },
+      competition: {
+        timezone: { type: String, default: "" },
+        minQualifiedOrders: {
+          daily: { type: Number, default: 1 },
+          weekly: { type: Number, default: 2 },
+          monthly: { type: Number, default: 4 },
+          yearly: { type: Number, default: 12 },
+        },
+        refundRatioCeiling: { type: Number, default: null },
+      },
     },
   },
   {

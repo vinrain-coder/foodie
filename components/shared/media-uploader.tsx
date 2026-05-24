@@ -37,6 +37,24 @@ const IMAGE_AND_VIDEO_ACCEPT = {
   "video/*": [],
 } as const;
 
+const areMediaListsEqual = (a: MediaItem[], b: MediaItem[]) => {
+  if (a.length !== b.length) return false;
+  for (let index = 0; index < a.length; index += 1) {
+    if (a[index]?.url !== b[index]?.url || a[index]?.type !== b[index]?.type) {
+      return false;
+    }
+  }
+  return true;
+};
+
+const areStringListsEqual = (a: string[], b: string[]) => {
+  if (a.length !== b.length) return false;
+  for (let index = 0; index < a.length; index += 1) {
+    if (a[index] !== b[index]) return false;
+  }
+  return true;
+};
+
 function MediaPreview({
   item,
   onRemove,
@@ -153,16 +171,38 @@ export default function MediaUploader<TFieldValues extends FieldValues>({
   }, [value]);
 
   useEffect(() => {
-    setMedia(normalizedFromForm);
+    setMedia((previous) =>
+      areMediaListsEqual(previous, normalizedFromForm)
+        ? previous
+        : normalizedFromForm,
+    );
   }, [normalizedFromForm]);
 
   useEffect(() => {
-    const nextValue = multiple ? media.map((item) => item.url) : media[0]?.url || "";
-    form.setValue(name, nextValue as PathValue<TFieldValues, Path<TFieldValues>>, {
-      shouldDirty: true,
-      shouldValidate: true,
-    });
-  }, [form, media, multiple, name]);
+    const nextValue = multiple
+      ? media.map((item) => item.url)
+      : media[0]?.url || "";
+
+    if (multiple) {
+      const currentValue = Array.isArray(value)
+        ? value.filter((entry): entry is string => typeof entry === "string")
+        : [];
+      const nextArray = nextValue as string[];
+      if (areStringListsEqual(currentValue, nextArray)) return;
+    } else {
+      const currentValue = typeof value === "string" ? value : "";
+      if (currentValue === nextValue) return;
+    }
+
+    form.setValue(
+      name,
+      nextValue as PathValue<TFieldValues, Path<TFieldValues>>,
+      {
+        shouldDirty: true,
+        shouldValidate: true,
+      },
+    );
+  }, [form, media, multiple, name, value]);
 
   const { startUpload, isUploading } = useUploadThing(uploadRoute, {
     onClientUploadComplete: (result) => {

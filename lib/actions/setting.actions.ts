@@ -38,7 +38,18 @@ const withSettingDefaults = (
       ...fallback.socialMedia,
       ...(setting.socialMedia ?? {}),
     },
-    affiliate: { ...fallback.affiliate, ...(setting.affiliate ?? {}) },
+    affiliate: {
+      ...fallback.affiliate,
+      ...(setting.affiliate ?? {}),
+      competition: {
+        ...fallback.affiliate.competition,
+        ...(setting.affiliate?.competition ?? {}),
+        minQualifiedOrders: {
+          ...fallback.affiliate.competition.minQualifiedOrders,
+          ...(setting.affiliate?.competition?.minQualifiedOrders ?? {}),
+        },
+      },
+    },
     notifications: {
       sms: {
         ...fallback.notifications.sms,

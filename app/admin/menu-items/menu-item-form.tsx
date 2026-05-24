@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/field";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import {
   FormProvider,
   useForm,
@@ -27,7 +28,6 @@ import { toast } from "sonner";
 import SubmitButton from "@/components/shared/submit-button";
 import { FormError } from "@/components/shared/form-error";
 import { useEffect } from "react";
-import MarkdownEditor from "react-markdown-editor-lite";
 import ReactMarkdown from "react-markdown";
 import { useTheme } from "next-themes";
 import {
@@ -42,6 +42,19 @@ import { Textarea } from "@/components/ui/textarea";
 import MediaUploader from "@/components/shared/media-uploader";
 import { IMenuItem } from "@/lib/db/models/menu.item.model";
 import { MenuItemInputSchema, MenuItemUpdateSchema } from "@/lib/validator";
+
+const MarkdownEditor = dynamic(() => import("react-markdown-editor-lite"), {
+  ssr: false,
+});
+
+const markdownEditorViewConfig = {
+  menu: true,
+  md: true,
+  html: false,
+  both: false,
+  fullScreen: true,
+  hideMenu: false,
+} as const;
 
 const handleKeyDown = (e: React.KeyboardEvent) => {
   if (e.key === "Enter") {
@@ -159,7 +172,10 @@ const MenuItemForm = ({
 
   // Update slug whenever name changes
   useEffect(() => {
-    form.setValue("slug", toSlug(nameValue));
+    const nextSlug = toSlug(nameValue || "");
+    const currentSlug = form.getValues("slug") || "";
+    if (currentSlug === nextSlug) return;
+    form.setValue("slug", nextSlug);
   }, [nameValue, form]);
 
   return (
@@ -402,8 +418,12 @@ const MenuItemForm = ({
                   <MarkdownEditor
                     {...field}
                     style={{ height: "500px" }}
+                    canView={markdownEditorViewConfig}
                     theme={theme === "dark" ? "dark" : "light"}
-                    onChange={({ text }) => form.setValue("description", text)}
+                    onChange={({ text }) => {
+                      if ((form.getValues("description") || "") === text) return;
+                      form.setValue("description", text);
+                    }}
                     renderHTML={(text) => (
                       <div
                         className={`prose max-w-none ${

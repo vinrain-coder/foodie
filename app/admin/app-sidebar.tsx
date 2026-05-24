@@ -11,7 +11,6 @@ import {
   IconFileText,
   IconLayoutGrid,
   IconMail,
-  IconPalette,
   IconReceipt2,
   IconTags,
   IconSettings,
@@ -94,6 +93,11 @@ const data = {
     {
       title: "Affiliates",
       url: "/admin/affiliates",
+      icon: IconAffiliate,
+    },
+    {
+      title: "Affiliate Competitions",
+      url: "/admin/affiliates/competitions",
       icon: IconAffiliate,
     },
     {
