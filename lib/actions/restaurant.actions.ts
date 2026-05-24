@@ -750,6 +750,182 @@ export async function updateRestaurantActivationStatus(
   }
 }
 
+export async function bulkModerateRestaurantsByAdmin(input: {
+  restaurantIds: string[];
+  action: "approve" | "reject" | "set_pending" | "activate" | "suspend";
+  adminNote?: string;
+}): Promise<
+  ActionState<{
+    requested: number;
+    processed: number;
+    updated: number;
+    skipped: number;
+    failed: number;
+    failures: Array<{ restaurantId: string; reason: string }>;
+  }>
+> {
+  try {
+    await connectToDatabase();
+    const session = await getServerSession();
+    if (!isAdminRole(session?.user?.role)) throw new Error("Unauthorized");
+
+    const normalizedIds = Array.from(
+      new Set(
+        (input.restaurantIds || [])
+          .map((value) => String(value || "").trim())
+          .filter(Boolean),
+      ),
+    );
+
+    if (normalizedIds.length === 0) {
+      throw new Error("Select at least one restaurant");
+    }
+
+    if (normalizedIds.length > 100) {
+      throw new Error(
+        "Bulk restaurant actions are limited to 100 restaurants per request",
+      );
+    }
+
+    const trimmedAdminNote = String(input.adminNote || "").trim();
+    if (input.action === "reject" && !trimmedAdminNote) {
+      throw new Error("A rejection reason is mandatory");
+    }
+
+    const invalidIds = normalizedIds.filter(
+      (id) => !mongoose.Types.ObjectId.isValid(id),
+    );
+    const validIds = normalizedIds.filter((id) =>
+      mongoose.Types.ObjectId.isValid(id),
+    );
+
+    if (validIds.length === 0) {
+      throw new Error("No valid restaurant ids were provided");
+    }
+
+    const restaurants = await Restaurant.find({
+      _id: {
+        $in: validIds.map((id) => new mongoose.Types.ObjectId(id)),
+      },
+    })
+      .select("_id status isApproved isActive")
+      .lean();
+
+    const restaurantById = new Map(
+      restaurants.map((restaurant) => [restaurant._id.toString(), restaurant]),
+    );
+
+    const failures: Array<{ restaurantId: string; reason: string }> = invalidIds.map(
+      (restaurantId) => ({
+        restaurantId,
+        reason: "Invalid restaurant id",
+      }),
+    );
+    let updated = 0;
+    let skipped = 0;
+
+    for (const restaurantId of validIds) {
+      const restaurant = restaurantById.get(restaurantId);
+      if (!restaurant) {
+        failures.push({ restaurantId, reason: "Restaurant not found" });
+        continue;
+      }
+
+      if (
+        input.action === "approve" &&
+        restaurant.status === "approved" &&
+        restaurant.isApproved &&
+        restaurant.isActive
+      ) {
+        skipped += 1;
+        continue;
+      }
+
+      if (
+        input.action === "set_pending" &&
+        restaurant.status === "pending" &&
+        !restaurant.isApproved &&
+        !restaurant.isActive
+      ) {
+        skipped += 1;
+        continue;
+      }
+
+      if (
+        input.action === "activate" &&
+        restaurant.status === "approved" &&
+        restaurant.isApproved &&
+        restaurant.isActive
+      ) {
+        skipped += 1;
+        continue;
+      }
+
+      if (
+        input.action === "suspend" &&
+        restaurant.status === "approved" &&
+        restaurant.isApproved &&
+        !restaurant.isActive
+      ) {
+        skipped += 1;
+        continue;
+      }
+
+      let result: ActionState;
+      if (
+        input.action === "approve" ||
+        input.action === "reject" ||
+        input.action === "set_pending"
+      ) {
+        result = await updateRestaurantApplicationStatus(
+          restaurantId,
+          input.action === "approve"
+            ? "approved"
+            : input.action === "reject"
+              ? "rejected"
+              : "pending",
+          trimmedAdminNote,
+        );
+      } else {
+        result = await updateRestaurantActivationStatus(
+          restaurantId,
+          input.action === "activate",
+          trimmedAdminNote,
+        );
+      }
+
+      if (result.success) {
+        updated += 1;
+      } else {
+        failures.push({
+          restaurantId,
+          reason: result.message || "Failed to process restaurant",
+        });
+      }
+    }
+
+    revalidatePath("/admin/restaurants");
+
+    const processed = validIds.length;
+    const failed = failures.length;
+
+    return {
+      success: true,
+      message: `Bulk ${input.action} completed: ${updated} updated, ${skipped} skipped, ${failed} failed.`,
+      data: {
+        requested: normalizedIds.length,
+        processed,
+        updated,
+        skipped,
+        failed,
+        failures: failures.slice(0, 20),
+      },
+    };
+  } catch (error) {
+    return { success: false, message: formatError(error) };
+  }
+}
+
 export async function deleteRestaurantByAdmin(id: string): Promise<ActionState> {
   try {
     await connectToDatabase();

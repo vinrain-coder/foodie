@@ -1,14 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import {
+  bulkModerateRestaurantsByAdmin,
   deleteRestaurantByAdmin,
   updateRestaurantActivationStatus,
   updateRestaurantApplicationStatus,
 } from "@/lib/actions/restaurant.actions";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import {
   Table,
@@ -69,6 +71,13 @@ type RestaurantApplicationRow = {
   };
 };
 
+type BulkRestaurantAction =
+  | "approve"
+  | "reject"
+  | "set_pending"
+  | "activate"
+  | "suspend";
+
 function ConfirmStatusActionButton({
   label,
   pending,
@@ -125,11 +134,43 @@ export default function RestaurantApplicationsList({
   const [isUpdating, setIsUpdating] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [notesById, setNotesById] = useState<Record<string, string>>({});
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkAdminNote, setBulkAdminNote] = useState("");
+  const [pendingBulkAction, setPendingBulkAction] =
+    useState<BulkRestaurantAction | null>(null);
+  const [isBulkPending, startBulkTransition] = useTransition();
 
   useEffect(() => {
     setList(applications);
     setTotalCount(totalApplications);
+    setSelectedIds([]);
+    setBulkAdminNote("");
   }, [applications, totalApplications]);
+
+  const selectableIds = useMemo(() => list.map((item) => item._id), [list]);
+  const selectedCount = selectedIds.length;
+  const allSelected =
+    selectableIds.length > 0 && selectedCount === selectableIds.length;
+  const someSelected =
+    selectedCount > 0 && selectedCount < selectableIds.length;
+
+  const toggleAll = (next: boolean) => {
+    if (next) {
+      setSelectedIds(selectableIds);
+      return;
+    }
+    setSelectedIds([]);
+  };
+
+  const toggleOne = (id: string, next: boolean) => {
+    setSelectedIds((current) => {
+      if (next) {
+        if (current.includes(id)) return current;
+        return [...current, id];
+      }
+      return current.filter((value) => value !== id);
+    });
+  };
 
   async function handleStatusUpdate(
     id: string,
@@ -214,11 +255,122 @@ export default function RestaurantApplicationsList({
     if (res.success) {
       toast.success(res.message);
       setList((prev) => prev.filter((item) => item._id !== id));
+      setSelectedIds((prev) => prev.filter((value) => value !== id));
       setTotalCount((prev) => Math.max(0, prev - 1));
     } else {
       toast.error(res.message);
     }
   }
+
+  const applyBulkMutation = (
+    action: BulkRestaurantAction,
+    ids: string[],
+    adminNote: string,
+  ) => {
+    const idSet = new Set(ids);
+    const trimmedNote = adminNote.trim();
+
+    setList((prev) =>
+      prev.map((item) => {
+        if (!idSet.has(item._id)) return item;
+
+        if (action === "approve") {
+          return {
+            ...item,
+            status: "approved",
+            isApproved: true,
+            isActive: true,
+            adminNote: trimmedNote,
+          };
+        }
+
+        if (action === "reject") {
+          return {
+            ...item,
+            status: "rejected",
+            isApproved: false,
+            isActive: false,
+            adminNote: trimmedNote,
+          };
+        }
+
+        if (action === "set_pending") {
+          return {
+            ...item,
+            status: "pending",
+            isApproved: false,
+            isActive: false,
+            adminNote: trimmedNote,
+          };
+        }
+
+        if (action === "activate") {
+          return {
+            ...item,
+            isActive: true,
+            adminNote: trimmedNote || item.adminNote || "",
+          };
+        }
+
+        return {
+          ...item,
+          isActive: false,
+          adminNote: trimmedNote || item.adminNote || "",
+        };
+      }),
+    );
+  };
+
+  const handleBulkAction = (action: BulkRestaurantAction) => {
+    const trimmedNote = bulkAdminNote.trim();
+    if (selectedIds.length === 0) {
+      toast.error("Select at least one restaurant first.");
+      return;
+    }
+    if (action === "reject" && trimmedNote.length === 0) {
+      toast.error("Provide a rejection reason for bulk reject.");
+      return;
+    }
+
+    setPendingBulkAction(action);
+    startBulkTransition(async () => {
+      try {
+        const result = await bulkModerateRestaurantsByAdmin({
+          restaurantIds: selectedIds,
+          action,
+          adminNote: trimmedNote,
+        });
+
+        if (!result.success) {
+          toast.error(result.message || "Failed to run bulk restaurant action.");
+          return;
+        }
+
+        toast.success(result.message || `Bulk ${action} completed.`);
+        const failedIds = new Set(
+          (result.data?.failures || []).map((failure) => failure.restaurantId),
+        );
+        const successfulIds = selectedIds.filter((id) => !failedIds.has(id));
+
+        if (successfulIds.length > 0) {
+          applyBulkMutation(action, successfulIds, trimmedNote);
+        }
+        if ((result.data?.failed || 0) > 0) {
+          const firstFailure = result.data?.failures?.[0];
+          if (firstFailure) {
+            toast.info(`First failure: ${firstFailure.reason}`);
+          }
+        }
+
+        setSelectedIds([]);
+        setBulkAdminNote("");
+      } catch {
+        toast.error("Unexpected error while running bulk restaurant action.");
+      } finally {
+        setPendingBulkAction(null);
+      }
+    });
+  };
 
   return (
     <div className="space-y-6">
@@ -230,19 +382,88 @@ export default function RestaurantApplicationsList({
         </p>
       </div>
 
+      <div className="space-y-3 rounded-lg border bg-muted/20 p-3">
+        <p className="text-sm">
+          <span className="font-medium">{selectedCount}</span> restaurant(s)
+          selected
+        </p>
+        <Textarea
+          value={bulkAdminNote}
+          onChange={(event) => setBulkAdminNote(event.target.value)}
+          placeholder="Optional admin note (required for bulk reject)"
+          rows={2}
+          disabled={isBulkPending}
+        />
+        <div className="flex flex-wrap gap-2">
+          <ConfirmStatusActionButton
+            label="Approve Selected"
+            pending={isBulkPending && pendingBulkAction === "approve"}
+            disabled={isBulkPending || selectedCount === 0}
+            title="Approve selected restaurants?"
+            description="Selected applications will be approved and activated."
+            onConfirm={() => handleBulkAction("approve")}
+          />
+          <ConfirmStatusActionButton
+            label="Reject Selected"
+            variant="destructive"
+            pending={isBulkPending && pendingBulkAction === "reject"}
+            disabled={
+              isBulkPending || selectedCount === 0 || bulkAdminNote.trim() === ""
+            }
+            title="Reject selected restaurants?"
+            description="Selected applications will be rejected. A note is required."
+            onConfirm={() => handleBulkAction("reject")}
+          />
+          <ConfirmStatusActionButton
+            label="Set Pending"
+            variant="outline"
+            pending={isBulkPending && pendingBulkAction === "set_pending"}
+            disabled={isBulkPending || selectedCount === 0}
+            title="Move selected restaurants to pending?"
+            description="This removes approval state and marks selected restaurants for review."
+            onConfirm={() => handleBulkAction("set_pending")}
+          />
+          <ConfirmStatusActionButton
+            label="Activate Selected"
+            pending={isBulkPending && pendingBulkAction === "activate"}
+            disabled={isBulkPending || selectedCount === 0}
+            title="Activate selected restaurants?"
+            description="Only approved restaurants will be activated for storefront ordering."
+            onConfirm={() => handleBulkAction("activate")}
+          />
+          <ConfirmStatusActionButton
+            label="Suspend Selected"
+            variant="secondary"
+            pending={isBulkPending && pendingBulkAction === "suspend"}
+            disabled={isBulkPending || selectedCount === 0}
+            title="Suspend selected restaurants?"
+            description="Only approved restaurants will be suspended from storefront ordering."
+            onConfirm={() => handleBulkAction("suspend")}
+          />
+        </div>
+      </div>
+
       <Card>
         <CardHeader>
           <CardTitle>Restaurant Applications</CardTitle>
         </CardHeader>
         <CardContent>
           {list.length === 0 ? (
-            <p className="text-center py-8 text-muted-foreground">
+            <p className="py-8 text-center text-muted-foreground">
               No restaurant applications found.
             </p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-12">
+                    <Checkbox
+                      checked={allSelected ? true : someSelected ? "indeterminate" : false}
+                      onCheckedChange={(value) => toggleAll(value === true)}
+                      disabled={isBulkPending}
+                      aria-label="Select all restaurants"
+                    />
+                  </TableHead>
                   <TableHead>Restaurant</TableHead>
                   <TableHead>Owner</TableHead>
                   <TableHead>Status</TableHead>
@@ -254,14 +475,28 @@ export default function RestaurantApplicationsList({
                 {list.map((item) => (
                   <TableRow key={item._id}>
                     <TableCell>
-                      <div className="font-medium flex items-center gap-2">
+                      <Checkbox
+                        checked={selectedIds.includes(item._id)}
+                        disabled={
+                          isBulkPending ||
+                          isUpdating === item._id ||
+                          isDeleting === item._id
+                        }
+                        onCheckedChange={(value) =>
+                          toggleOne(item._id, value === true)
+                        }
+                        aria-label={`Select ${item.name}`}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2 font-medium">
                         <Store className="h-4 w-4 text-muted-foreground" />
                         {item.name}
                       </div>
                       <div className="text-xs text-muted-foreground">
                         /{item.slug}
                       </div>
-                      <div className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                      <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
                         <MapPin className="h-3 w-3" />
                         {item.location}
                       </div>
@@ -270,7 +505,7 @@ export default function RestaurantApplicationsList({
                       <div className="font-medium">
                         {item.ownerId?.name || "Unknown owner"}
                       </div>
-                      <div className="text-xs text-muted-foreground flex items-center gap-1">
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
                         <Mail className="h-3 w-3" />
                         {item.ownerId?.email || "No email"}
                       </div>
@@ -284,7 +519,7 @@ export default function RestaurantApplicationsList({
                               ? "pending"
                               : "destructive"
                         }
-                        className="flex items-center gap-1 w-fit"
+                        className="flex w-fit items-center gap-1"
                       >
                         {item.status === "approved" && (
                           <CheckCircle2 className="h-3 w-3" />
@@ -310,7 +545,7 @@ export default function RestaurantApplicationsList({
                         </p>
                       )}
                       {item.adminNote ? (
-                        <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
+                        <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
                           Note: {item.adminNote}
                         </p>
                       ) : null}
@@ -318,12 +553,16 @@ export default function RestaurantApplicationsList({
                     <TableCell>
                       {new Date(item.createdAt).toLocaleDateString()}
                     </TableCell>
-                    <TableCell className="text-right space-x-2">
+                    <TableCell className="space-x-2 text-right">
                       <Button
                         asChild
                         size="sm"
                         variant="outline"
-                        disabled={isUpdating === item._id || isDeleting === item._id}
+                        disabled={
+                          isBulkPending ||
+                          isUpdating === item._id ||
+                          isDeleting === item._id
+                        }
                       >
                         <Link href={`/admin/restaurants/${item._id}`}>Edit</Link>
                       </Button>
@@ -332,7 +571,11 @@ export default function RestaurantApplicationsList({
                           <Button
                             size="sm"
                             variant="destructive"
-                            disabled={isUpdating === item._id || isDeleting === item._id}
+                            disabled={
+                              isBulkPending ||
+                              isUpdating === item._id ||
+                              isDeleting === item._id
+                            }
                           >
                             {isDeleting === item._id ? (
                               <Loader2 className="h-4 w-4 animate-spin" />
@@ -370,7 +613,7 @@ export default function RestaurantApplicationsList({
                             label="Approve"
                             variant="default"
                             pending={isUpdating === item._id}
-                            disabled={isUpdating === item._id}
+                            disabled={isUpdating === item._id || isBulkPending}
                             title="Approve restaurant application?"
                             description="This will approve this restaurant and make it active immediately."
                             onConfirm={() => handleStatusUpdate(item._id, "approved")}
@@ -390,7 +633,7 @@ export default function RestaurantApplicationsList({
                               <Button
                                 size="sm"
                                 variant="destructive"
-                                disabled={isUpdating === item._id}
+                                disabled={isUpdating === item._id || isBulkPending}
                               >
                                 Reject
                               </Button>
@@ -401,8 +644,8 @@ export default function RestaurantApplicationsList({
                                   Reject Restaurant Application
                                 </DialogTitle>
                                 <DialogDescription>
-                                  Please provide a reason for rejection. This
-                                  note is mandatory.
+                                  Please provide a reason for rejection. This note is
+                                  mandatory.
                                 </DialogDescription>
                               </DialogHeader>
                               <div className="py-4">
@@ -429,7 +672,8 @@ export default function RestaurantApplicationsList({
                                   }
                                   disabled={
                                     !(notesById[item._id] || "").trim() ||
-                                    isUpdating === item._id
+                                    isUpdating === item._id ||
+                                    isBulkPending
                                   }
                                 >
                                   {isUpdating === item._id ? (
@@ -449,7 +693,7 @@ export default function RestaurantApplicationsList({
                             label={item.isActive ? "Suspend" : "Activate"}
                             variant={item.isActive ? "secondary" : "default"}
                             pending={isUpdating === item._id}
-                            disabled={isUpdating === item._id}
+                            disabled={isUpdating === item._id || isBulkPending}
                             title={
                               item.isActive
                                 ? "Suspend this restaurant?"
@@ -468,7 +712,7 @@ export default function RestaurantApplicationsList({
                             label="Set Pending"
                             variant="outline"
                             pending={isUpdating === item._id}
-                            disabled={isUpdating === item._id}
+                            disabled={isUpdating === item._id || isBulkPending}
                             title="Move this restaurant back to pending?"
                             description="This removes current approval state and marks it for review again."
                             onConfirm={() => handleStatusUpdate(item._id, "pending")}
@@ -481,7 +725,7 @@ export default function RestaurantApplicationsList({
                             label="Approve"
                             variant="default"
                             pending={isUpdating === item._id}
-                            disabled={isUpdating === item._id}
+                            disabled={isUpdating === item._id || isBulkPending}
                             title="Approve this rejected application?"
                             description="This will approve and activate the restaurant."
                             onConfirm={() => handleStatusUpdate(item._id, "approved")}
@@ -490,7 +734,7 @@ export default function RestaurantApplicationsList({
                             label="Re-open"
                             variant="outline"
                             pending={isUpdating === item._id}
-                            disabled={isUpdating === item._id}
+                            disabled={isUpdating === item._id || isBulkPending}
                             title="Re-open this application?"
                             description="This will set the restaurant status to pending for another review."
                             onConfirm={() => handleStatusUpdate(item._id, "pending")}
